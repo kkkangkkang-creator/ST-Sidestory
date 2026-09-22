@@ -11,7 +11,7 @@ try {
  page.on('pageerror',e=>errors.push(e.message));
  await page.route('https://sideb.test/**', async r=>{
   const p=new URL(r.request().url()).pathname;
-  if(p==='/')return r.fulfill({contentType:'text/html',body:'<!doctype html><html><body><div id="extensionsMenu"></div><script type="module" src="/scripts/extensions/third-party/ST-Sidestory/index.js"></script></body></html>'});
+  if(p==='/')return r.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="extensionsMenu"></div><script type="module" src="/scripts/extensions/third-party/ST-Sidestory/index.js"></script></body></html>'});
   if(p==='/scripts/world-info.js')return r.fulfill({contentType:'text/javascript',body:'export const world_names=["Book"];export const selected_world_info=["Book"];export async function loadWorldInfo(){return {entries:{0:{uid:0,comment:"Place",content:"A quiet cafe",disable:false}}}}'});
   if(p==='/scripts/extensions/shared.js')return r.fulfill({contentType:'text/javascript',body:'export {};'});
   if(p==='/script.js')return r.fulfill({contentType:'text/javascript',body:'export const user_avatar="user.png";export function isGenerating(){return false;}'});
@@ -26,6 +26,15 @@ try {
  await page.goto('https://sideb.test/');
  await page.locator('#side-story-wand').click();await page.locator('#open-references').click();
  await page.locator('#close-references-done').click();
+ // ST themes can make body a containing block for fixed descendants.
+ await page.setViewportSize({width:390,height:780});
+ await page.evaluate(()=>{document.documentElement.style.transform='translateZ(0)';document.body.style.cssText='height:50vh;transform:translateY(-120px);filter:blur(0);overflow:hidden';});
+ const bounds=async()=>{const r=await page.locator('.window').boundingBox();assert(Math.abs(r.x)<1&&Math.abs(r.y)<1,JSON.stringify(r));assert(Math.abs(r.height-(await page.evaluate(()=>visualViewport.height)))<2);for(const id of ['#close','#generate']){const b=await page.locator(id).boundingBox();assert(b.y>=0&&b.y+b.height<=r.height+1,id);}};
+ await bounds();await page.screenshot({path:'/tmp/st-sidestory-mobile-compose.png'});await page.locator('#request').fill('모바일 입력');await page.setViewportSize({width:390,height:430});await bounds();
+ await page.locator('#close').click();assert(await page.locator('#st-sidestory-root').isHidden());
+ await page.evaluate(()=>document.body.style.cssText='');await page.locator('#side-story-wand').click();await bounds();
+ await page.setViewportSize({width:1280,height:850});
+
  // Use story to verify end-to-end raw generation and archive without modifying chat.
  await page.locator('[data-mode="story"]').first().click();
  await page.locator('#request').fill('두 사람이 카페에서 만나는 외전');await page.locator('#generate').click();

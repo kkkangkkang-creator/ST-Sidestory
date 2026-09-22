@@ -148,3 +148,12 @@
 @media(max-width:700px){.window .archive-page{padding:13px 10px 20px}.archive-title-row p{display:none}.archive-toolbar{gap:6px;padding:6px}.archive-filter-group{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;width:100%}.archive-filter-item{min-width:0}.window .archive-filter-item select{min-width:0;max-width:none;width:100%}.archive-filter-item>span:first-child{display:none}.archive-action-group{width:100%;justify-content:flex-end;border-top:1px solid var(--line);padding-top:5px}.archive-action-divider{margin-left:auto}.side-dialog-overlay,.archive-organizer-overlay{padding:10px}.archive-organizer-body .field{grid-template-columns:1fr;gap:4px}.side-toast{top:48px;max-width:calc(100vw - 20px)}}
 
 .st-current-cards{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}.st-current-card{display:flex;align-items:center;gap:8px;min-width:0}.st-current-card img{width:30px;height:38px;object-fit:cover;border-radius:5px}.st-current-card span{display:flex;flex-direction:column;min-width:0}.st-current-card b{font-size:12px}.st-current-card small{font-size:10px;opacity:.65;overflow-wrap:anywhere}
+
+/* Own the visible viewport, independently of SillyTavern's page layout. */
+:host{position:fixed!important;inset:auto!important;margin:0!important;padding:0!important;border:0!important;max-width:none!important;max-height:none!important;overflow:hidden!important;box-sizing:border-box!important;background:#101d1866;z-index:2147482000!important}
+:host([hidden]){display:none!important}
+:host::backdrop{background:transparent}
+.app{height:100%;min-height:0}
+.app>.window{position:absolute;inset:12px;height:auto;max-height:none;margin:0;box-shadow:none}
+.reference-overlay,.side-dialog-overlay,.archive-organizer-overlay{position:absolute}
+@media(max-width:850px){.app>.window{inset:0;height:auto;border:0;border-radius:0;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}.window .topbar{flex-wrap:wrap;flex-shrink:0}.window .top-actions{flex-wrap:wrap}.compose-scroll{overscroll-behavior:contain}.window .generate-area{flex-shrink:0}}
