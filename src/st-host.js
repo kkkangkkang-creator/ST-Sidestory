@@ -1,0 +1,147 @@
+/** SillyTavern adapter. No API credentials or chat mutations. */
+export function createSTHost({context = () => globalThis.SillyTavern.getContext(), world = {}, state = {}, services = {}, fetcher = globalThis.fetch} = {}) {
+    let running = null;
+    const cleanups = [];
+    const get = () => context();
+    const abortError = () => new DOMException('중단됨', 'AbortError');
+    const check = signal => { if (signal?.aborted) throw abortError(); };
+    function currentChatId() {
+        const c = get();
+        const id = c.getCurrentChatId?.() ?? c.chatId;
+        if (id == null || id === '') return '';
+        const owner = c.groupId != null ? 'group:' + c.groupId : 'character:' + (c.characters?.[c.characterId]?.avatar || c.characterId || '');
+        return JSON.stringify([owner, String(id)]);
+    }
+    function card(row) { return {...row, id: String(row.avatar), data: row.data || row}; }
+    function cards() { return (get().characters || []).filter(x => x.avatar).map(card); }
+    function players() {
+        const c=get(), p=c.powerUserSettings || {};
+        const rows=Object.entries(p.personas || {}).map(([id,name])=>({id,name,data:{name,description:p.persona_descriptions?.[id]?.description || ''}}));
+        if (!rows.length && (c.name1 || p.persona_description)) rows.push({id:'current',name:c.name1||'사용자',data:{name:c.name1||'사용자',description:p.persona_description||''}});
+        return rows;
+    }
+    function currentPersona() {
+        const c=get(),p=c.powerUserSettings||{};
+        const id=state.user_avatar || c.userAvatar || c.chatMetadata?.persona;
+        if(players().some(x=>x.id===id))return id;
+        const matches=players().filter(x=>x.name===c.name1);return matches.length===1?matches[0].id:'';
+    }
+    function linked() {
+        const c=get(), group=c.groups?.find(x=>String(x.id)===String(c.groupId));
+        if(c.groupId!=null) return (group?.members||[]).filter(id=>cards().some(x=>x.id===id));
+        const row=c.characters?.[c.characterId];return row?.avatar?[row.avatar]:[];
+    }
+    function books() {
+        const names=get().getWorldInfoNames?.() ?? world.world_names;
+        if(!Array.isArray(names)) throw new Error('월드인포 목록을 불러오지 못했어요. 실리태번 버전과 월드인포 모듈을 확인해 주세요.');
+        const c=get(), p=c.powerUserSettings||{}, connected=new Set([
+            ...(world.selected_world_info || []),c.chatMetadata?.world_info,p.persona_description_lorebook,
+            ...linked().map(id=>cards().find(x=>x.id===id)?.data?.extensions?.world),
+            ...linked().flatMap(id=>world.world_info?.charLore?.find(x=>x.name===id.replace(/\.[^.]+$/, ''))?.extraBooks||[]),
+        ].filter(Boolean));
+        return names.map(name=>({id:name,name,enabled:true,isGlobal:connected.has(name)}));
+    }
+    function currentChat() {
+        const c=get();let summary=typeof c.chatMetadata?.summary==='string'?c.chatMetadata.summary:'';
+        if(!summary) for(let i=(c.chat?.length||0)-1;i>=0;i--) { if(typeof c.chat[i]?.extra?.memory==='string' && !c.chat[i].is_system) {summary=c.chat[i].extra.memory;break;} }
+        let lore=[];try{lore=books().filter(x=>x.isGlobal).map(x=>x.id);}catch{}
+        return {id:currentChatId(),name:String(c.getCurrentChatId?.()??c.chatId??'현재 채팅'),mode:'roleplay',connectionId:'st-current',characterIds:linked(),personaId:currentPersona(),metadata:{summary,activeLorebookIds:lore}};
+    }
+    function messages() {
+        return (get().chat||[]).filter(m=>!m.is_system).map((m,i)=>({id:String(i),role:m.is_user?'user':m.name||'assistant',content:String(m.mes||''),characterId:m.original_avatar||'',extra:{hiddenFromAI:!!m.extra?.hiddenFromAI,hiddenFromUser:!!m.extra?.hiddenFromUser}}));
+    }
+    async function entries(name, signal) {
+        check(signal);
+        let data;
+        const load=get().loadWorldInfo || world.loadWorldInfo;
+        if(typeof load==='function') data=await load(name);
+        else {
+            const r=await fetcher('/api/worldinfo/get',{method:'POST',headers:get().getRequestHeaders(),body:JSON.stringify({name}),signal});
+            if(!r.ok)throw new Error('월드인포 읽기 실패: '+r.status); data=await r.json();
+        }
+        check(signal);
+        if(!data?.entries)throw new Error('월드인포를 찾을 수 없어요: '+name);
+        return Object.entries(data.entries).map(([key,e])=>({...e,id:String(e.uid??key),name:e.comment||String(e.uid??key),enabled:!e.disable,content:String(e.content||'')}));
+    }
+    const connectionService = () => get().ConnectionManagerRequestService || services.ConnectionManagerRequestService;
+    function profiles() {
+        const c=get();if(c.extensionSettings?.disabledExtensions?.includes('connection-manager'))return [];
+        const rows=c.extensionSettings?.connectionManager?.profiles||[], service=connectionService();
+        return rows.filter(p=>{try{return p?.id && (service?.isProfileSupported ? service.isProfileSupported(p) : ['openai','textgenerationwebui'].includes(c.CONNECT_API_MAP?.[p.api]?.selected));}catch{return false;}});
+    }
+    function connections() {
+        const c=get(),active=c.extensionSettings?.connectionManager?.selectedProfile;
+        const list=profiles();
+        return [{id:'st-current',name:'현재 실리태번 연결'+(list.find(p=>p.id===active)?.name?' · '+list.find(p=>p.id===active).name:''),model:c.getChatCompletionModel?.()||c.mainApi||'',isDefault:true},...list.map(p=>({id:p.id,name:p.name||p.id,model:p.model||p.api||'',provider:p.api}))];
+    }
+    function tokenCounter(connectionId) {
+        const c=get(), cache=new Map();let fallback=false;
+        const model=c.getTokenizerModel?.()||c.mainApi||'현재 모델';
+        const profile=connectionId && connectionId!=='st-current';
+        const same=!profile || c.extensionSettings?.connectionManager?.selectedProfile===connectionId;
+        const estimate=text=>{let a=0,b=0;for(const ch of text){if(ch.codePointAt(0)<128)a++;else b++;}return Math.ceil(a/3.5+b*1.5);};
+        async function text(value){
+            const str=typeof value==='string'?value:JSON.stringify(value??'');if(!str)return 0;
+            if(cache.has(str))return cache.get(str);
+            let n;try {if(typeof c.getTokenCountAsync!=='function')throw new Error('No tokenizer');n=await c.getTokenCountAsync(str);if(!Number.isFinite(n)||n<=0)throw new Error('Invalid count');}catch {fallback=true;n=estimate(str);}
+            if(cache.size>=64)cache.delete(cache.keys().next().value);cache.set(str,n);return n;
+        }
+        return {text,async messages(rows){let n=3;for(const m of rows)n+=await text(m.content)+8;return n;},info(){return {source:fallback?'estimate':'sillytavern',model,profileMatched:same,label:fallback?'글자 수 추정 (토크나이저 사용 불가)':`ST 토크나이저 · ${model}${same?'':' · 현재 연결 기준, 선택 프로필과 다름'}`};}};
+    }
+    async function request(path, body, signal) {
+        check(signal);const [route]=path.split('?');
+        if(route==='/chats')return currentChatId()?[currentChat()]:[];
+        if(route==='/connections')return connections();
+        if(route==='/characters') {
+            const target=currentChatId(), ids=linked(), c=get();
+            const hydrate=c.unshallowCharacter || state.unshallowCharacter;
+            if(typeof hydrate==='function')for(const id of ids){const index=c.characters.findIndex(x=>x.avatar===id);if(c.characters[index]?.shallow)await hydrate(index);check(signal);}
+            if(target!==currentChatId())throw abortError();
+            return cards().filter(x=>ids.includes(x.id));
+        }
+        if(route==='/characters/personas/list')return players().filter(x=>x.id===currentPersona());
+        if(route==='/lorebooks')return books();
+        if(route==='/prompts')return [];
+        let match=route.match(/^\/chats\/([^/]+)(\/messages)?$/);
+        if(match) {
+            if(decodeURIComponent(match[1])!==currentChatId())throw new Error('참고 채팅이 바뀌었어요. 해당 채팅을 열고 새로고침해 주세요.');
+            return match[2]?messages():currentChat();
+        }
+        match=route.match(/^\/characters\/(personas\/)?([^/]+)$/);
+        if(match){const row=(match[1]?players():cards()).find(x=>x.id===decodeURIComponent(match[2]));if(!row)throw new Error('선택한 카드를 찾지 못했어요. 참고 자료를 다시 선택해 주세요.');return structuredClone(row);}
+        match=route.match(/^\/lorebooks\/([^/]+)\/entries$/);
+        if(match)return entries(decodeURIComponent(match[1]),signal);
+        throw new Error('실리태번 이식판에서 지원하지 않는 요청: '+route);
+    }
+    async function generate(payload, signal) {
+        check(signal);
+        if(running)throw new Error('이전 API 요청이 종료될 때까지 잠시 기다려 주세요.');
+        const c=get();
+        if((typeof state.isGenerating==='function' && state.isGenerating()) || (typeof c.isGenerating==='function'?c.isGenerating():c.isGenerating) || c.isSendPress)throw new Error('본편 생성이 끝난 뒤 다시 시도해 주세요.');
+        const id=payload.connectionId||'st-current',service=connectionService();
+        let send;
+        if(id!=='st-current') {
+            if(!profiles().some(p=>p.id===id))throw new Error('선택한 연결 프로필을 찾을 수 없어요. 설정에서 다시 선택해 주세요.');
+            if(typeof service?.sendRequest!=='function')throw new Error('연결 프로필 요청 API를 지원하지 않는 실리태번 버전이에요.');
+            send=()=>service.sendRequest(id,structuredClone(payload.messages),payload.parameters?.maxTokens,{stream:false,signal,extractData:true,includePreset:true,includeInstruct:true});
+        } else {
+            if(typeof c.generateRaw!=='function')throw new Error('generateRaw를 지원하는 실리태번 버전이 필요해요.');
+            send=()=>c.generateRaw({prompt:structuredClone(payload.messages),responseLength:payload.parameters?.maxTokens,trimNames:false});
+        }
+        const job=Promise.resolve().then(()=>{check(signal);return send();});
+        running=job;
+        job.then(()=>{if(running===job)running=null;},()=>{if(running===job)running=null;});
+        let handler;
+        try {
+            const cancelled=new Promise((_,reject)=>{handler=()=>reject(abortError());signal?.addEventListener('abort',handler,{once:true});if(signal?.aborted)handler();});
+            const result=await Promise.race([job,cancelled]);check(signal);const text=typeof result==='string'?result:result?.content;
+            if(typeof text!=='string')throw new Error('실리태번에서 텍스트 결과를 받지 못했어요.');return text;
+        } finally {signal?.removeEventListener('abort',handler);}
+    }
+    return {
+        request,generate,currentChatId,currentChat,linked,currentPersona,tokenCounter,connections,
+        storage:{async get(){return {sideStory:get().extensionSettings?.st_sidestory||{}};},async patch(value){const c=get();if(!c.extensionSettings||typeof c.saveSettingsDebounced!=='function')throw new Error('실리태번 설정 저장 API를 찾지 못했어요.');c.extensionSettings.st_sidestory=structuredClone(value.sideStory);c.saveSettingsDebounced();}},
+        setTimeout:globalThis.setTimeout.bind(globalThis),clearTimeout:globalThis.clearTimeout.bind(globalThis),
+        onCleanup(fn){cleanups.push(fn);},cleanup(){for(const fn of cleanups.splice(0))fn();}
+    };
+}
