@@ -33,11 +33,11 @@ const HostCore=(()=>{
   }
 
   function markdown(text) {
-    const inline=s=>esc(s).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+    const inline=s=>esc(s).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g,'$1<em>$2</em>').replace(/(^|[^_])_([^_\n]+)_(?!_)/g,'$1<em>$2</em>');
     const lines=text.split('\n'),out=[];let code=false,chunk=[];
     for(let i=0;i<lines.length;i++) {const l=lines[i];if(/^```/.test(l)){if(code){out.push('<pre><code>'+esc(chunk.join('\n'))+'</code></pre>');chunk=[];}code=!code;continue;}if(code){chunk.push(l);continue;}
       if(i+1<lines.length&&l.includes('|')&&/^\s*\|?\s*:?-{3,}/.test(lines[i+1])) {const cells=x=>x.trim().replace(/^\||\|$/g,'').split('|');out.push('<div class="table-wrap"><table><thead><tr>'+cells(l).map(c=>'<th>'+inline(c)+'</th>').join('')+'</tr></thead><tbody>');i+=2;while(i<lines.length&&lines[i].includes('|')){out.push('<tr>'+cells(lines[i]).map(c=>'<td>'+inline(c)+'</td>').join('')+'</tr>');i++;}i--;out.push('</tbody></table></div>');continue;}
-      const h=l.match(/^(#{1,6})\s+(.+)/);if(h)out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`);else if(/^\s*[-*]\s/.test(l))out.push('<p class="bullet">• '+inline(l.replace(/^\s*[-*]\s/,''))+'</p>');else if(l.trim())out.push('<p>'+inline(l)+'</p>');
+      const h=l.match(/^(#{1,6})\s+(.+)/);if(h)out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`);else if(/^\s*(?:-{3,}|\*{3,})\s*$/.test(l))out.push('<hr>');else if(/^\s*[-*]\s/.test(l))out.push('<p class="bullet">• '+inline(l.replace(/^\s*[-*]\s/,''))+'</p>');else if(l.trim())out.push('<p>'+inline(l)+'</p>');
     }if(chunk.length)out.push('<pre>'+esc(chunk.join('\n'))+'</pre>');return out.join('\n');
   }
 
