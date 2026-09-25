@@ -36,7 +36,7 @@ Use concise, maintainable HTML and CSS with shared classes for repeated styling,
 Return only the finished HTML document. Begin with <!DOCTYPE html> and end with </body></html>.`};
  const BUILTIN_INSTRUCTION_ID='builtin',BUILTIN_TRANSLATION_ID='builtin';
 
- const DEFAULTS={innerHonesty:'character',writeHonesty:'character',showInnerThoughts:false,inputHistory:[],requestDrafts:{},recommendations:{},mode:'visual',presetId:'',request:'',connectionId:'',translationConnectionId:'',chatReferences:{},scope:'60',referenceMode:'both',summaryByChat:{},manualSummary:'',referenceSource:'selected',characterIds:[],personaIds:[],contextBudget:24000,inputMaxTokens:64000,maxTokens:20000,translationLanguage:'한국어',translationMaxTokens:20000,translationPrompt:'',instructionPresets:[],activeInstructionPresetId:BUILTIN_INSTRUCTION_ID,translationPresets:[],activeTranslationPresetId:BUILTIN_TRANSLATION_ID,archiveFolders:[],launcherX:null,launcherY:null,viewerSize:14,viewerFont:'system',language:'한국어',lengthPreset:'middle',tone:'',notes:'',pcControl:true,includeSummary:true,loreIds:[],loreEntries:{},viewerWidth:100,viewerSpacing:0,viewerLine:1.65,visualScripts:true,visualOverride:false,visualSize:14,visualFont:'original',visualSpacing:0,visualLine:1.65,prompts:{...PROMPTS},theme:'light'};
+ const DEFAULTS={innerHonesty:'character',writeHonesty:'character',showInnerThoughts:false,inputHistory:[],requestDrafts:{},recommendations:{},mode:'visual',presetId:'',request:'',connectionId:'',translationConnectionId:'',chatReferences:{},scope:'60',referenceMode:'both',summaryByChat:{},manualSummary:'',referenceSource:'selected',characterIds:[],personaIds:[],contextBudget:24000,inputMaxTokens:64000,maxTokens:20000,translationLanguage:'한국어',translationMaxTokens:20000,translationPrompt:'',instructionPresetsByMode:{},activeInstructionPresetIds:{},translationPresets:[],activeTranslationPresetId:BUILTIN_TRANSLATION_ID,archiveFolders:[],launcherX:null,launcherY:null,viewerSize:14,viewerFont:'system',language:'한국어',lengthPreset:'middle',tone:'',notes:'',pcControl:true,includeSummary:true,loreIds:[],loreEntries:{},viewerWidth:100,viewerSpacing:0,viewerLine:1.65,visualScripts:true,visualOverride:false,visualSize:14,visualFont:'original',visualSpacing:0,visualLine:1.65,prompts:{...PROMPTS},theme:'light'};
  const clamp=(v,a,b,d)=>Math.min(b,Math.max(a,Math.round(Number(v)||d)));
  const decimal=(v,a,b,d)=>Number.isFinite(Number(v))?Math.min(b,Math.max(a,Number(v))):d;
  const stringValue=(value,fallback,max)=>typeof value==='string'?value.slice(0,max):fallback;
@@ -45,8 +45,8 @@ Return only the finished HTML document. Begin with <!DOCTYPE html> and end with 
  function settings(raw={}){
   if(!raw||typeof raw!=='object')raw={};
   const rawPrompts=raw.prompts&&typeof raw.prompts==='object'?raw.prompts:{};
-  const s={...DEFAULTS,prompts:{...PROMPTS,...rawPrompts},instructionPresets:[],translationPresets:[]};
-  for(const key of Object.keys(DEFAULTS))if(!['prompts','instructionPresets','translationPresets','activeInstructionPresetId','activeTranslationPresetId'].includes(key)&&Object.prototype.hasOwnProperty.call(raw,key))s[key]=raw[key];
+  const s={...DEFAULTS,prompts:{...PROMPTS,...rawPrompts},instructionPresetsByMode:{},activeInstructionPresetIds:{},translationPresets:[]};
+  for(const key of Object.keys(DEFAULTS))if(!['prompts','instructionPresets','instructionPresetsByMode','activeInstructionPresetId','activeInstructionPresetIds','translationPresets','activeTranslationPresetId'].includes(key)&&Object.prototype.hasOwnProperty.call(raw,key))s[key]=raw[key];
   s.referenceMode=s.referenceMode==='summary'?'summary':'both';
   s.summaryByChat=Object.fromEntries(Object.entries(raw.summaryByChat||{}).filter(([k,v])=>typeof k==='string'&&typeof v==='string').map(([k,v])=>[k,v.slice(0,60000)]));
   s.manualSummary=stringValue(s.manualSummary,'',60000);
@@ -75,11 +75,23 @@ Return only the finished HTML document. Begin with <!DOCTYPE html> and end with 
   s.loreIds=Array.isArray(s.loreIds)?[...new Set(s.loreIds.filter(x=>typeof x==='string'))].slice(0,12):[];
   s.loreEntries=Object.fromEntries(Object.entries(s.loreEntries||{}).filter(([k,v])=>typeof k==='string'&&Array.isArray(v)).map(([k,v])=>[k,[...new Set(v.filter(x=>typeof x==='string'))]]));
   for(const k of ['request','notes','tone','language','connectionId','presetId','translationLanguage','translationPrompt','translationConnectionId'])s[k]=stringValue(s[k],DEFAULTS[k],12000);
-  const cleanInstructionPresets=Array.isArray(raw.instructionPresets)?raw.instructionPresets.slice(0,80).flatMap((item,index)=>{if(!item||typeof item!=='object')return[];const id=stringValue(item.id,'',120).trim();if(!id||id===BUILTIN_INSTRUCTION_ID)return[];const rp=item.prompts&&typeof item.prompts==='object'?item.prompts:{};return[{id,name:(stringValue(item.name,'',80).trim()||`지침 ${index+1}`),prompts:Object.fromEntries(Object.keys(PROMPTS).map(k=>[k,stringValue(rp[k],PROMPTS[k],16000)]))}];}):[];
-  s.instructionPresets=cleanInstructionPresets;
-  let instructionId=stringValue(raw.activeInstructionPresetId,BUILTIN_INSTRUCTION_ID,120);
-  if(!Array.isArray(raw.instructionPresets)&&Object.keys(PROMPTS).some(k=>typeof rawPrompts[k]==='string'&&rawPrompts[k]!==PROMPTS[k])){const migrated={id:'legacy-instruction',name:'이전 사용자 설정',prompts:Object.fromEntries(Object.keys(PROMPTS).map(k=>[k,stringValue(rawPrompts[k],PROMPTS[k],16000)]))};s.instructionPresets=[migrated];instructionId=migrated.id;}
-  if(instructionId!==BUILTIN_INSTRUCTION_ID&&!s.instructionPresets.some(p=>p.id===instructionId))instructionId=BUILTIN_INSTRUCTION_ID;s.activeInstructionPresetId=instructionId;const instructionPreset=s.instructionPresets.find(p=>p.id===instructionId);s.prompts=instructionPreset?{...PROMPTS,...instructionPreset.prompts}:{...PROMPTS};
+  const instructionModes=Object.keys(PROMPTS),rawByMode=raw.instructionPresetsByMode&&typeof raw.instructionPresetsByMode==='object'&&!Array.isArray(raw.instructionPresetsByMode)?raw.instructionPresetsByMode:null,rawActiveByMode=raw.activeInstructionPresetIds&&typeof raw.activeInstructionPresetIds==='object'&&!Array.isArray(raw.activeInstructionPresetIds)?raw.activeInstructionPresetIds:{};
+  const instructionPresetsByMode=Object.fromEntries(instructionModes.map(mode=>[mode,[]])),activeInstructionPresetIds=Object.fromEntries(instructionModes.map(mode=>[mode,BUILTIN_INSTRUCTION_ID]));
+  if(rawByMode){
+   for(const mode of instructionModes){
+    const list=Array.isArray(rawByMode[mode])?rawByMode[mode]:[];
+    instructionPresetsByMode[mode]=list.slice(0,80).flatMap((item,index)=>{if(!item||typeof item!=='object')return[];const id=stringValue(item.id,'',120).trim();if(!id||id===BUILTIN_INSTRUCTION_ID)return[];return[{id,name:(stringValue(item.name,'',80).trim()||`지침 ${index+1}`),prompt:stringValue(item.prompt,PROMPTS[mode],16000)}];});
+    let id=stringValue(rawActiveByMode[mode],BUILTIN_INSTRUCTION_ID,120);if(id!==BUILTIN_INSTRUCTION_ID&&!instructionPresetsByMode[mode].some(p=>p.id===id))id=BUILTIN_INSTRUCTION_ID;activeInstructionPresetIds[mode]=id;
+   }
+  }else if(Array.isArray(raw.instructionPresets)){
+   const legacy=raw.instructionPresets.slice(0,80).flatMap((item,index)=>{if(!item||typeof item!=='object')return[];const id=stringValue(item.id,'',120).trim();if(!id||id===BUILTIN_INSTRUCTION_ID)return[];const rp=item.prompts&&typeof item.prompts==='object'?item.prompts:{};return[{id,name:(stringValue(item.name,'',80).trim()||`지침 ${index+1}`),prompts:Object.fromEntries(instructionModes.map(mode=>[mode,stringValue(rp[mode],PROMPTS[mode],16000)]))}];});
+   let legacyActive=stringValue(raw.activeInstructionPresetId,BUILTIN_INSTRUCTION_ID,120);if(legacyActive!==BUILTIN_INSTRUCTION_ID&&!legacy.some(p=>p.id===legacyActive))legacyActive=BUILTIN_INSTRUCTION_ID;
+   for(const mode of instructionModes){instructionPresetsByMode[mode]=legacy.map(item=>({id:item.id,name:item.name,prompt:item.prompts[mode]}));activeInstructionPresetIds[mode]=legacyActive;}
+  }else{
+   for(const mode of instructionModes)if(typeof rawPrompts[mode]==='string'&&rawPrompts[mode]!==PROMPTS[mode]){const id='legacy-instruction-'+mode;instructionPresetsByMode[mode]=[{id,name:'이전 사용자 설정',prompt:stringValue(rawPrompts[mode],PROMPTS[mode],16000)}];activeInstructionPresetIds[mode]=id;}
+  }
+  s.instructionPresetsByMode=instructionPresetsByMode;s.activeInstructionPresetIds=activeInstructionPresetIds;
+  s.prompts=Object.fromEntries(instructionModes.map(mode=>{const id=activeInstructionPresetIds[mode],preset=instructionPresetsByMode[mode].find(p=>p.id===id);return[mode,preset?preset.prompt:PROMPTS[mode]];}));
   const cleanTranslationPresets=Array.isArray(raw.translationPresets)?raw.translationPresets.slice(0,80).flatMap((item,index)=>{if(!item||typeof item!=='object')return[];const id=stringValue(item.id,'',120).trim();if(!id||id===BUILTIN_TRANSLATION_ID)return[];return[{id,name:(stringValue(item.name,'',80).trim()||`번역 ${index+1}`),prompt:stringValue(item.prompt,'',12000)}];}):[];
   s.archiveFolders=cleanFolders(raw.archiveFolders??s.archiveFolders);
   s.launcherX=raw.launcherX!==null&&raw.launcherX!==undefined&&Number.isFinite(Number(raw.launcherX))?Math.min(1,Math.max(0,Number(raw.launcherX))):null;
@@ -170,7 +182,7 @@ ${s.notes.trim()}`;
  }
  function speakMarkdown(value){const items=speakBlocks(value);if(!items.length)return String(value??'');return items.map((item,index)=>{const head=item.request?`**${items.length>1?`요청 ${index+1}`:'요청'}**\n\n${item.request}`:'';return [head,item.spoken,item.inner?`**속마음**\n\n${item.inner}`:''].filter(Boolean).join('\n\n');}).join('\n\n---\n\n');}
  function translationPrompt(s,fallback=''){return s?.translationPrompt?.trim()?s.translationPrompt:fallback;}
- function recordSettings(value){const clean=structuredClone(settings(value));delete clean.instructionPresets;delete clean.translationPresets;delete clean.activeInstructionPresetId;delete clean.activeTranslationPresetId;delete clean.archiveFolders;delete clean.chatReferences;delete clean.summaryByChat;delete clean.inputHistory;delete clean.requestDrafts;delete clean.recommendations;return clean;}
+ function recordSettings(value){const clean=structuredClone(settings(value));delete clean.instructionPresets;delete clean.instructionPresetsByMode;delete clean.translationPresets;delete clean.activeInstructionPresetId;delete clean.activeInstructionPresetIds;delete clean.activeTranslationPresetId;delete clean.archiveFolders;delete clean.chatReferences;delete clean.summaryByChat;delete clean.inputHistory;delete clean.requestDrafts;delete clean.recommendations;return clean;}
  function visual(raw){
   const source=String(raw).trim().replace(/^```(?:html)?\s*/i,'').replace(/\s*```$/,'').trim();
   if(!/^(?:<!doctype\s+html[^>]*>\s*)?<html[\s>]/i.test(source))throw new Error('응답이 HTML 문서 형식이 아니에요. 원문을 보관했어요. 수정 요청으로 다시 만들 수 있어요.');
