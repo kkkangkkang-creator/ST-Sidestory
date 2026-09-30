@@ -51,7 +51,7 @@ try {
  await page.locator('#translate').click();await page.getByText('🌙는 카페에서 세레나를 기다렸다.',{exact:true}).waitFor();await page.locator('#translation-original').click();await page.getByText('🌙는 카페에서 ⭐를 기다렸다.',{exact:true}).waitFor();
  // Selecting transformed text retains the original for per-excerpt toggles.
  await page.locator('#result .reading-copy p').first().evaluate(el=>{const r=document.createRange();r.selectNodeContents(el);const s=window.getSelection();s.removeAllRanges();s.addRange(r);document.dispatchEvent(new Event('selectionchange'));});
- await page.locator('#excerpt-selection').click();assert.equal(await page.locator('[data-excerpt="text"]').inputValue(),'Slade는 카페에서 Serena를 기다렸다.');
+ await page.locator('#excerpt-selection').click();assert.equal(await page.locator('[data-excerpt="text"]').inputValue(),'Slade는 카페에서 Serena를 기다렸다.');assert.equal(await page.locator('[data-excerpt="title"]').inputValue(),'A');
  await page.locator('[data-excerpt="title"]').fill('Slade의 기록');await page.locator('[data-excerpt="author"]').fill('Serena');
  await page.locator('[data-excerpt-ratio="1:1"]').click();await page.waitForFunction(()=>!document.getElementById('st-sidestory-root').shadowRoot.getElementById('excerpt-save').disabled);
  const download=page.waitForEvent('download');await page.locator('#excerpt-save').click();const file=await download,png=fs.readFileSync(await file.path());assert.equal(png.readUInt32BE(16),1080);assert.equal(png.readUInt32BE(20),1080);
@@ -65,7 +65,15 @@ try {
  await page.locator('#excerpt-clear-breaks').click();await page.waitForFunction(()=>document.getElementById('st-sidestory-root').shadowRoot.getElementById('excerpt-page-label').textContent==='1 / 1');assert(!(await page.locator('[data-excerpt="text"]').inputValue()).includes('[[PAGE]]'));
  await page.locator('[data-excerpt-ratio="auto"]').click();await page.locator('[data-excerpt="text"]').fill('줄\n'.repeat(2000));await page.waitForFunction(()=>document.getElementById('st-sidestory-root').shadowRoot.getElementById('excerpt-feedback').textContent.includes('너무 길거나'),null,{timeout:10000}).catch(async e=>{console.log(await page.locator('#excerpt-feedback').textContent());throw e;});assert(await page.locator('#excerpt-save').isDisabled());
  await page.locator('[data-excerpt-background="sage"]').click();await page.locator('[data-excerpt="text"]').fill('Slade는 잠시 말을 멈췄다. 창가에 내려앉은 햇빛 속에서, 평범한 하루가 조금 특별해졌다.');await page.waitForFunction(()=>!document.getElementById('st-sidestory-root').shadowRoot.getElementById('excerpt-save').disabled);
- await page.setViewportSize({width:390,height:780});await page.screenshot({path:'/tmp/side-story-excerpt-mobile.png'});
+ await page.setViewportSize({width:390,height:780});
+ await page.locator('[data-excerpt-ratio="auto"]').click();await page.locator('[data-excerpt="text"]').fill('A long excerpt stays fully visible in the preview. '.repeat(35));await page.locator('[data-excerpt="author"]').fill('Updated author');
+ await page.waitForFunction(()=>!document.getElementById('st-sidestory-root').shadowRoot.getElementById('excerpt-save').disabled);
+ const preview=await page.locator('#excerpt-canvas').evaluate(c=>{const box=c.parentElement,rect=c.getBoundingClientRect(),b=box.getBoundingClientRect();return {fit:getComputedStyle(c).objectFit,contained:rect.top>=b.top&&rect.bottom<=b.bottom,scroll:box.scrollHeight<=box.clientHeight,large:c.height>1440,pixels:c.toDataURL()};});
+ assert.equal(preview.fit,'contain');assert(preview.contained&&preview.scroll&&preview.large);
+ await page.locator('[data-excerpt-ratio="auto"]').click();await page.waitForFunction(()=>!document.getElementById('st-sidestory-root').shadowRoot.getElementById('excerpt-save').disabled);assert.equal(await page.locator('#excerpt-canvas').evaluate(c=>c.toDataURL()),preview.pixels);
+ await page.locator('[data-excerpt="text"]').fill('Short text');await page.locator('[data-excerpt="author"]').fill('Another author');await page.waitForFunction(()=>!document.getElementById('st-sidestory-root').shadowRoot.getElementById('excerpt-save').disabled);
+ assert.equal(await page.locator('#excerpt-canvas').evaluate(c=>c.height),1080);
+ await page.screenshot({path:'/tmp/side-story-excerpt-mobile.png'});
  const rect=await page.locator('.feature-dialog').boundingBox();assert(rect.x>=0&&rect.y>=0&&rect.x+rect.width<=391&&rect.y+rect.height<=781);
  await page.locator('#feature-close').click();await page.setViewportSize({width:1280,height:850});
  // Back at the bottom preserves archive search.

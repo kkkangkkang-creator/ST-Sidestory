@@ -3,11 +3,19 @@ const excerptThemes={paper:{name:'종이',color:'#f5efdf',ink:'#38372e'},sage:{n
 async function backgroundStore(){if(!backgroundDB)backgroundDB=await new Promise((resolve,reject)=>{const q=indexedDB.open('st-sidestory-backgrounds-v1',1);q.onupgradeneeded=()=>q.result.createObjectStore('backgrounds',{keyPath:'id'});q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);});return backgroundDB;}
 async function backgroundOp(type,value){const db=await backgroundStore();return new Promise((resolve,reject)=>{const tx=db.transaction('backgrounds',type==='all'?'readonly':'readwrite'),store=tx.objectStore('backgrounds'),q=type==='all'?store.getAll():type==='delete'?store.delete(value):store.put(value);tx.oncomplete=()=>resolve(q.result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
 async function loadBackgrounds(){backgrounds=await backgroundOp('all');for(const b of backgrounds)if(!backgroundURLs.has(b.id))backgroundURLs.set(b.id,URL.createObjectURL(b.blob));}
+async function excerptDefaultTitle(record){
+ let ids=record.settings?.characterIds||[];
+ // The archived chat owner identifies the character even when another chat is open.
+ try{const owner=JSON.parse(record.chatId)[0];if(typeof owner==='string'&&owner.startsWith('character:'))ids=[owner.slice(10)];}catch{}
+ const names=await Promise.all([...new Set(ids)].map(async id=>{try{const card=characters.find(c=>c.id===id)||await get('/characters/'+encodeURIComponent(id));return String(card.data?.name||card.name||'').trim();}catch{return '';}}));
+ return names.filter(Boolean).join(' · ').slice(0,160)||'발췌';
+}
 async function openExcerpt(){
  if(!current||editing)throw Error('편집을 닫은 뒤 결과에서 문장을 선택해 주세요.');
  const selected=selectedExcerpt?.id===current.id&&selectedExcerpt.translation===translationShown?selectedExcerpt:null;
  if((selected?.raw||'').length>12000)throw Error('발췌는 한 번에 12,000자까지 지원해요. 문장을 조금 더 짧게 선택해 주세요.');
- excerpt={ratio:'auto',background:'paper',font:'serif',vertical:'center',size:48,line:1.7,padding:88,align:'left',color:'#38372e',overlay:0,overlayColor:'#ffffff',zoom:1,x:50,y:50,...s.excerptStyle,text:(selected?.raw||'').slice(0,12000),title:current.title.slice(0,160),author:s.excerptStyle?.author||'',useRules:s.replacementsEnabled,useTemporary:temporaryState().enabled,recordId:current.id,page:0,pages:1};
+ const record=current,title=await excerptDefaultTitle(record);if(!opened||current?.id!==record.id)return;
+ excerpt={ratio:'auto',background:'paper',font:'serif',vertical:'center',size:48,line:1.7,padding:88,align:'left',color:'#38372e',overlay:0,overlayColor:'#ffffff',zoom:1,x:50,y:50,...s.excerptStyle,text:(selected?.raw||'').slice(0,12000),title,author:s.excerptStyle?.author||'',useRules:s.replacementsEnabled,useTemporary:temporaryState().enabled,recordId:current.id,page:0,pages:1};
  try{await loadBackgrounds();}catch(e){say('내 배경을 불러오지 못했어요. '+e.message,true);}
  if(!excerptThemes[excerpt.background]&&!backgrounds.some(b=>b.id===excerpt.background))excerpt.background='paper';
  openFeature('excerpt');
