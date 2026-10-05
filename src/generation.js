@@ -48,7 +48,7 @@ async function generate(action='new'){
  if(previous)options.mode=previous.mode;
  delete options.summaryByChat;
  const task=action==='new'?s.request.trim():action==='regenerate'?previous.request:
-  $('followup')?.value.trim()||(action==='continue'?'다음 장면을 이어 써줘.':'요청한 내용을 유지하면서 완전한 결과로 다시 만들어줘.');
+  $('followup')?.value.trim()||(action==='continue'?'앞의 결과를 바탕으로 다음 내용을 이어서 작성해줘.':'요청한 내용을 유지하면서 완전한 결과로 다시 만들어줘.');
  if(!task){say('보고 싶은 내용을 한 줄 적어 주세요.');$('request')?.focus();return;}
  if(previous&&previous.chatId!==target){say('다른 채팅에서 만든 결과는 이 채팅에서 이어 쓸 수 없어요.',true);return;}
  if(options.mode==='think'){say('이전 생각하기 기록은 읽기와 저장만 지원해요.');return;}
@@ -57,7 +57,7 @@ async function generate(action='new'){
  controller=new AbortController();const signal=controller.signal;runId=H.uuid();let partial='';
  const record={
   id:H.uuid(),mode:options.mode,
-  title:(action==='continue'?'다음 장면 · ':action==='revise'?'수정본 · ':'')+(previous?.title||task).slice(0,160),
+  title:(action==='continue'?'이어쓰기 · ':action==='revise'?'수정본 · ':'')+(previous?.title||task).slice(0,160),
   request:previous?.request||task,chatId:target,chatName:previous?.chatName||'',
   characterIds:[...(s.characterIds||[])],characterNames:(s.characterIds||[]).map(id=>characters.find(c=>c.id===id)?.name||id),
   content:'',status:'partial',createdAt:Date.now(),favorite:false,settings:C.recordSettings(options),
