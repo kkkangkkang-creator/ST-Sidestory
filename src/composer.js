@@ -24,7 +24,7 @@ function innerOptions(){
  if(s.mode==='write')return `<div class="inner-options">${field('쓰는 방식',select('writeHonesty',honesty))}</div>`;
  return '';
 }
-function inputHistoryMatchesCurrent(r){const ids=new Set(s.characterIds||[]);if(Array.isArray(r.characterIds)&&r.characterIds.some(id=>ids.has(id)))return true;for(const saved of Array.isArray(r.chatIds)?r.chatIds:[]){if(saved===chatId)return true;try{const owner=JSON.parse(String(saved))[0];if(typeof owner==='string'&&owner.startsWith('character:')&&ids.has(owner.slice(10)))return true;}catch{}}return false;}
+function inputHistoryMatchesCurrent(r){return C.matchesCharacter(r,s.characterIds,chatId);}
 function inputShelf(){
  const modeRows=s.inputHistory.map((r,i)=>({r,i})).filter(x=>x.r.mode===s.mode).sort((a,b)=>b.r.usedAt-a.r.usedAt),scoped=inputPanelScope==='current'?modeRows.filter(x=>inputHistoryMatchesCurrent(x.r)):modeRows,rows=inputPanelTab==='favorites'?scoped.filter(x=>x.r.favorite):scoped;
  return `<div class="input-shelf"><button class="history-toggle" data-history-toggle="true" aria-expanded="${inputPanelOpen}" aria-controls="input-history-panel">입력 히스토리 <small>${scoped.length}</small></button><section id="input-history-panel" class="history-panel" aria-label="입력 기록" ${inputPanelOpen?'':'hidden'}><nav class="history-tabs" aria-label="입력 기록 범위"><button data-history-scope="all" aria-pressed="${inputPanelScope==='all'}">전체 <small>${modeRows.length}</small></button><button data-history-scope="current" aria-pressed="${inputPanelScope==='current'}">현재 캐릭터 <small>${modeRows.filter(x=>inputHistoryMatchesCurrent(x.r)).length}</small></button></nav><nav class="history-tabs" aria-label="입력 기록 분류"><button data-history-tab="history" aria-pressed="${inputPanelTab==='history'}">히스토리 <small>${scoped.length}</small></button><button data-history-tab="favorites" aria-pressed="${inputPanelTab==='favorites'}">즐겨찾기 <small>${scoped.filter(x=>x.r.favorite).length}</small></button></nav><div class="input-history-list">${rows.map(({r,i})=>`<div class="input-history-row"><button data-input-load="${i}" class="input-history-text" title="${E(r.text)}">${E(r.text)}</button><button data-input-pin="${i}" title="${r.favorite?'즐겨찾기 해제':'즐겨찾기 추가'}" aria-label="${r.favorite?'즐겨찾기 해제':'즐겨찾기 추가'}" aria-pressed="${r.favorite}">${smallIcon('star',r.favorite)}</button><button data-input-delete="${i}" title="입력 기록 삭제" aria-label="입력 기록 삭제">${smallIcon('trash')}</button></div>`).join('')||`<p class="hint">${inputPanelTab==='favorites'?'히스토리에서 별을 눌러 자주 쓰는 요청을 모아보세요.':'생성에 사용한 요청이 여기에 남아요.'}</p>`}</div></section></div>`;
@@ -47,4 +47,5 @@ function handleInputShelf(d){
  }else{if(action==='inputPin')r.favorite=!r.favorite;else s.inputHistory.splice(index,1);persist();refreshInputShelf();}
  return true;
 }
+
 

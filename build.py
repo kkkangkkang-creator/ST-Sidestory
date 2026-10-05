@@ -1,10 +1,9 @@
 from pathlib import Path
-import json,base64
+import json
 root=Path(__file__).parent
 src=root/'src'
-files=['replacement.js','reading-surface.js','token-budget.js','extras.js','transport.js','core.js','renderer.js','extras-ui.js','enhancements.js','design.js','compact.js','composer.js','reading-ui.js','excerpt.js','extension.js']
+files=['replacement.js','reading-surface.js','token-budget.js','extras.js','transport.js','core.js','renderer.js','extras-ui.js','enhancements.js','design.js','compact.js','composer.js','reading-ui.js','excerpt.js','generation.js','extension.js']
 code='const SIDE_STYLE='+json.dumps((src/'style.css').read_text(),ensure_ascii=False)+';\n'
-code+='const SIDE_LAUNCHER_ICON='+json.dumps('data:image/png;base64,'+base64.b64encode((root/'assets/launcher-icon.png').read_bytes()).decode())+';\n'
 code+='\n'.join((src/f).read_text() for f in files)
 wrapper='''import { createSTHost } from './src/st-host.js';
 let hostAdapter,starting;
@@ -28,3 +27,4 @@ function report(e){console.error('[Side Story]',e);globalThis.toastr?.error(e.me
 '''
 (root/'index.js').write_text(wrapper)
 print('Built index.js')
+
