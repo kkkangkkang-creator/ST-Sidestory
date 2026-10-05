@@ -125,8 +125,14 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
             if(typeof service?.sendRequest!=='function')throw new Error('연결 프로필 요청 API를 지원하지 않는 실리태번 버전이에요.');
             send=()=>service.sendRequest(id,structuredClone(payload.messages),payload.parameters?.maxTokens,{stream:false,signal,extractData:true,includePreset:true,includeInstruct:true});
         } else {
-            if(typeof c.generateRaw!=='function')throw new Error('generateRaw를 지원하는 실리태번 버전이 필요해요.');
-            send=()=>c.generateRaw({prompt:structuredClone(payload.messages),responseLength:payload.parameters?.maxTokens,trimNames:false});
+            if(payload.useSillyTavernContext) {
+                if(typeof c.generateQuietPrompt!=='function')throw new Error('현재 실리태번 프롬프트를 사용하려면 generateQuietPrompt를 지원하는 실리태번 버전이 필요해요.');
+                const quietPrompt=String(payload.quietPrompt||payload.messages?.map(m=>m.content).filter(Boolean).join('\n\n')||'');
+                send=()=>c.generateQuietPrompt({quietPrompt,quietToLoud:false,responseLength:payload.parameters?.maxTokens,removeReasoning:true});
+            } else {
+                if(typeof c.generateRaw!=='function')throw new Error('generateRaw를 지원하는 실리태번 버전이 필요해요.');
+                send=()=>c.generateRaw({prompt:structuredClone(payload.messages),responseLength:payload.parameters?.maxTokens,trimNames:false});
+            }
         }
         const job=Promise.resolve().then(()=>{check(signal);return send();});
         running=job;
