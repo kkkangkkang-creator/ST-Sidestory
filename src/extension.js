@@ -9,7 +9,13 @@ const viewport=window.visualViewport;window.addEventListener?.('resize',syncView
 stHost.onCleanup(()=>{window.removeEventListener?.('resize',syncViewport);viewport?.removeEventListener('resize',syncViewport);viewport?.removeEventListener('scroll',syncViewport);});
 function syncOverlay(){host.hidden=!opened;if(opened){syncViewport();if(host.hasAttribute('popover')&&!host.matches(':popover-open'))host.showPopover();}else if(host.hasAttribute('popover')&&host.matches(':popover-open'))host.hidePopover();}
 let saved={};try{saved=await stHost.storage.get();}catch(e){notice='이전 설정을 불러오지 못했어요. '+e.message;}
-let s=C.settings(saved.sideStory);s.referenceSource='selected';s.presetId='';let promptDrafts=structuredClone(s.prompts);
+let s=C.settings(saved.sideStory);s.referenceSource='selected';s.presetId='';
+{
+ const migrated=[];
+ for(const [savedChatId,ref] of Object.entries(s.chatReferences||{}))if(Array.isArray(ref?.inputHistory)){migrated.push(...ref.inputHistory.map(r=>({...r,chatIds:[savedChatId]})));delete ref.inputHistory;}
+ if(migrated.length)s.inputHistory=C.cleanHistory([...s.inputHistory,...migrated]);
+}
+let promptDrafts=structuredClone(s.prompts);
 try{db=await new Promise((resolve,reject)=>{const q=indexedDB.open('st-sidestory-archive-v1',1);q.onupgradeneeded=()=>q.result.createObjectStore('records',{keyPath:'id'});q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);});records=await dbOp('all');}catch(e){notice='보관함을 열지 못했어요. 결과를 파일로 내보내 주세요. '+e.message;}
 const $=x=>root.getElementById(x);
 const translationPresetDrafts=new Map();
