@@ -1,4 +1,4 @@
-/** SillyTavern adapter. No API credentials or chat mutations. */
+/** SillyTavern adapter. Chat creation is an explicit user action. */
 export function createSTHost({context = () => globalThis.SillyTavern.getContext(), world = {}, state = {}, services = {}, fetcher = globalThis.fetch} = {}) {
     let running = null;
     const cleanups = [];
@@ -113,6 +113,29 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         if(match)return entries(decodeURIComponent(match[1]),signal);
         throw new Error('실리태번 이식판에서 지원하지 않는 요청: '+route);
     }
+    async function createChatFromRecord(record) {
+        const c=get(),origin=currentChatId();
+        if(running||(typeof state.isGenerating==='function'&&state.isGenerating())||c.isSendPress||(typeof c.isGenerating==='function'?c.isGenerating():c.isGenerating))throw new Error('생성이 끝난 뒤 새 채팅을 만들어 주세요.');
+        if(!record?.content?.trim())throw new Error('새 채팅에 넣을 원문이 없어요.');
+        let owner='';try{const parsed=JSON.parse(record.chatId);if(typeof parsed?.[0]==='string')owner=parsed[0];}catch{}
+        const avatar=owner.startsWith('character:')?owner.slice(10):record.characterIds?.length===1?record.characterIds[0]:'';
+        const index=(c.characters||[]).findIndex(row=>row.avatar===avatar),character=c.characters?.[index];
+        if(!character)throw new Error('원본 캐릭터를 찾지 못했어요. 새 채팅은 캐릭터가 하나인 결과에서 지원해요.');
+        if(typeof c.openCharacterChat!=='function'||typeof c.selectCharacterById!=='function'||typeof c.getRequestHeaders!=='function')throw new Error('새 채팅 API를 지원하는 ST 버전이 필요해요.');
+        const uuid=()=>c.uuidv4?.()||globalThis.crypto.randomUUID?.()||Array.from(globalThis.crypto.getRandomValues(new Uint32Array(4)),n=>n.toString(16).padStart(8,'0')).join('');
+        const name='Side Story - '+String(record.title||'새 이야기').replace(/[\\/:*?"<>|\x00-\x1f]/g,'_').slice(0,60)+' - '+uuid();
+        const message={name:character.name,is_user:false,is_system:false,send_date:new Date().toISOString(),mes:record.content,extra:{sideStoryRecordId:record.id}};
+        const response=await fetcher('/api/chats/save',{method:'POST',headers:c.getRequestHeaders(),body:JSON.stringify({ch_name:character.name,avatar_url:character.avatar,file_name:name,force:false,chat:[{user_name:'unused',character_name:'unused',chat_metadata:{integrity:uuid()}},message]})});
+        if(!response.ok)throw new Error('새 채팅 저장 실패: '+response.status);
+        const saved=await response.json();if(saved?.ok!==true)throw new Error('새 채팅 저장을 확인하지 못했어요.');
+        if(origin!==currentChatId())throw new Error('새 채팅은 저장했지만 현재 채팅이 바뀌어 열지 않았어요. '+character.name+'의 채팅 목록에서 '+name+'을 열어 주세요.');
+        await c.saveChat?.();
+        if(origin!==currentChatId())throw new Error('채팅이 바뀌었어요. 저장된 새 채팅은 캐릭터 채팅 목록에서 열어 주세요: '+name);
+        await c.selectCharacterById(index,{switchMenu:false});
+        const selected=get();if(selected.groupId!=null||selected.characters?.[selected.characterId]?.avatar!==avatar)throw new Error('캐릭터 전환이 끝나지 않았어요. 저장된 새 채팅을 채팅 목록에서 열어 주세요: '+name);
+        await selected.openCharacterChat(name);
+        return name;
+    }
     async function generate(payload, signal) {
         check(signal);
         if(running)throw new Error('이전 API 요청이 종료될 때까지 잠시 기다려 주세요.');
@@ -153,7 +176,7 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         } finally {signal?.removeEventListener('abort',handler);}
     }
     return {
-        request,generate,currentChatId,currentChat,linked,currentPersona,tokenCounter,connections,
+        request,generate,createChatFromRecord,currentChatId,currentChat,linked,currentPersona,tokenCounter,connections,
         storage:{async get(){return {sideStory:get().extensionSettings?.st_sidestory||{}};},async patch(value){const c=get();if(!c.extensionSettings||typeof c.saveSettingsDebounced!=='function')throw new Error('실리태번 설정 저장 API를 찾지 못했어요.');c.extensionSettings.st_sidestory=structuredClone(value.sideStory);c.saveSettingsDebounced();}},
         setTimeout:globalThis.setTimeout.bind(globalThis),clearTimeout:globalThis.clearTimeout.bind(globalThis),
         onCleanup(fn){cleanups.push(fn);},cleanup(){for(const fn of cleanups.splice(0))fn();}
