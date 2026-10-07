@@ -128,7 +128,15 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
             if(payload.useSillyTavernContext) {
                 if(typeof c.generateQuietPrompt!=='function')throw new Error('현재 실리태번 프롬프트를 사용하려면 generateQuietPrompt를 지원하는 실리태번 버전이 필요해요.');
                 const quietPrompt=String(payload.quietPrompt||payload.messages?.map(m=>m.content).filter(Boolean).join('\n\n')||'');
-                send=()=>c.generateQuietPrompt({quietPrompt,quietToLoud:false,responseLength:payload.parameters?.maxTokens,removeReasoning:true});
+                send=async()=>{
+                    // Only the local scan arrays are changed; stored books and entry objects stay untouched.
+                    const event=c.eventTypes?.WORLDINFO_ENTRIES_LOADED,events=c.eventSource;
+                    const filter=rows=>{for(const key of ['globalLore','characterLore','chatLore','personaLore'])if(Array.isArray(rows[key]))rows[key].splice(0);};
+                    if(payload.selectedLoreOnly&&(!event||typeof events?.on!=='function'||typeof events?.removeListener!=='function'))throw new Error('엔트리 직접 선택은 WORLDINFO_ENTRIES_LOADED를 지원하는 ST 버전이 필요해요. ST를 업데이트하거나 ST 설정 따르기를 선택해 주세요.');
+                    if(payload.selectedLoreOnly)events.on(event,filter);
+                    try{return await c.generateQuietPrompt({quietPrompt,quietToLoud:false,responseLength:payload.parameters?.maxTokens,removeReasoning:true});}
+                    finally{if(payload.selectedLoreOnly)events.removeListener(event,filter);}
+                };
             } else {
                 if(typeof c.generateRaw!=='function')throw new Error('generateRaw를 지원하는 실리태번 버전이 필요해요.');
                 send=()=>c.generateRaw({prompt:structuredClone(payload.messages),responseLength:payload.parameters?.maxTokens,trimNames:false});

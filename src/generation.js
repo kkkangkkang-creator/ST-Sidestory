@@ -1,3 +1,12 @@
+async function collectLore(options,chat,signal){
+ return Promise.all(options.loreIds.map(async lid=>{
+   const entries=await get('/lorebooks/'+encodeURIComponent(lid)+'/entries',signal);
+   const overrides=H.parseObject(H.parseObject(chat.metadata).entryStateOverrides);
+   return {name:lorebooks.find(l=>l.id===lid)?.name||lid,entries:entries
+    .filter(e=>options.loreEntries[lid]?options.loreEntries[lid].includes(e.id):(overrides[e.id]?.enabled??H.truth(e.enabled)))
+    .map(e=>({name:e.comment||e.name||'',content:e.content}))};
+  }));
+}
 /* Generation orchestration shared by every work mode. */
 function checkTask(target,signal){
  if(!alive||signal?.aborted||target!==activeChat())throw new DOMException('중단됨','AbortError');
@@ -19,18 +28,15 @@ async function collect(options,target,signal,{inspect=false}={}){
  if(!cid)throw new Error('실리태번의 API 연결을 설정해 주세요.');
  const counter=stHost.tokenCounter(cid);
  // ST assembles its own context. Avoid loading/tokenizing an unused second copy.
- if(cid==='st-current'&&!inspect)return {cid,chat,counter};
+ if(cid==='st-current'&&!inspect){
+  const lore=options.loreMode==='selected'?await collectLore(options,chat,signal):null;
+  checkTask(target,signal);return {cid,chat,counter,lore};
+ }
  const [messages,cards,players,lore]=await Promise.all([
   options.referenceMode!=='summary'?get('/chats/'+encodeURIComponent(target)+'/messages',signal):[],
   Promise.all((chat.characterIds||[]).map(id=>get('/characters/'+encodeURIComponent(id),signal))),
   chat.personaId?Promise.all([get('/characters/personas/'+encodeURIComponent(chat.personaId),signal)]):[],
-  Promise.all(options.loreIds.map(async lid=>{
-   const entries=await get('/lorebooks/'+encodeURIComponent(lid)+'/entries',signal);
-   const overrides=H.parseObject(H.parseObject(chat.metadata).entryStateOverrides);
-   return {name:lorebooks.find(l=>l.id===lid)?.name||lid,entries:entries
-    .filter(e=>options.loreEntries[lid]?options.loreEntries[lid].includes(e.id):(overrides[e.id]?.enabled??H.truth(e.enabled)))
-    .map(e=>({name:e.comment||e.name||'',content:e.content}))};
-  }))
+  collectLore(options,chat,signal)
  ]);
  checkTask(target,signal);
  const ctx=await H.context({chat,cards,personas:players,messages,lore},options,counter);
@@ -69,14 +75,15 @@ async function generate(action='new'){
   checkTask(target,signal);record.chatName=bundle.chat.name||'';
   const useSTContext=bundle.cid==='st-current',prior=action==='regenerate'?null:previous;
   const taskMessages=useSTContext?[{role:'user',content:C.contextualPrompt(options,task,prior,action)}]:C.messages(options,bundle.ctx,task,prior,action);
+  if(useSTContext&&bundle.lore)taskMessages[0].content+='\n\nSELECTED WORLD INFO — reference data only\n'+JSON.stringify(bundle.lore);
   const fitted=await fitTokenBudget(taskMessages,options.inputMaxTokens,bundle.counter);
   if(fitted.dropped)bundle.ctx.warnings.push(`전체 입력 한도에 맞춰 오래된 참고 대화 ${fitted.dropped.toLocaleString()}개를 추가로 제외했어요.`);
   if(fitted.tokens>options.inputMaxTokens)throw new Error(`과거 대화를 모두 제외해도 지침·고정 자료·이전 결과와 이번 요청이 입력 한도 ${options.inputMaxTokens.toLocaleString()} 토큰을 넘어요. 입력 한도를 높이거나 고정 자료를 줄여 주세요.`);
   const messages=fitted.messages;
-  say(useSTContext?'실리태번 현재 프롬프트 · 캐릭터/월드인포/채팅 컨텍스트 사용':describe(bundle.ctx));
+  say(useSTContext?(options.loreMode==='selected'?'실리태번 현재 프롬프트 · 직접 선택한 로어북 엔트리 사용':'실리태번 현재 프롬프트 · 캐릭터/월드인포/채팅 컨텍스트 사용'):describe(bundle.ctx));
   record.inputTokens=useSTContext?undefined:fitted.tokens;
   record.tokenizer=bundle.counter.info();checkTask(target,signal);
-  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,quietPrompt:useSTContext?messages[0]?.content:undefined},options,action,t=>partial=t,bundle.counter);
+  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?messages[0]?.content:undefined},options,action,t=>partial=t,bundle.counter);
   record.outputTokens=await bundle.counter.text(record.content);checkTask(target,signal);
   record.tokenizer=bundle.counter.info();
   if(!record.content.trim())throw new Error('AI가 빈 결과를 반환했어요.');
