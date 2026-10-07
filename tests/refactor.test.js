@@ -64,7 +64,7 @@ test('HTML text translation preserves markup and CSS and escapes translated text
 });
 test('complete results reveal the result page but never cross a cancelled task or changed chat',()=>{
  let source=read('generation.js');source=source.slice(source.indexOf('function checkTask'),source.indexOf('async function collect('));
- const fixture=new Function('target',`let alive=true,current=null,page='archive',mobilePane='compose',viewEpoch=0,translationShown=false,translationDraft={},raw=true,editing=true,expanded=false,referencesOpen=true;
+ const fixture=new Function('target',`let s={mode:'story',request:'',requestDrafts:{}},continuationMode=null;let alive=true,current=null,page='archive',mobilePane='compose',viewEpoch=0,translationShown=false,translationDraft={},raw=true,editing=true,expanded=false,referencesOpen=true;
  function activeChat(){return target;}function closeFeature(){}
  ${source}
  return {show:showCompletedResult,check:checkTask,state:()=>({current,page,mobilePane,translationShown,translationDraft,raw,editing}),change:v=>target=v};`)('A');

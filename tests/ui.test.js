@@ -39,6 +39,18 @@ test('full UI with ST adapter: initialize, select references, generate, archive,
  c.characterId=1;events.get('chat')();finishCount(7);await wait(()=>records.size===2);
  const edited=[...records.values()].find(r=>r.content==='EDITED_ORIGINAL_CHAT');assert(edited);assert.equal(edited.chatId,[...records.values()][0].chatId);
  document.querySelector('#side-story-wand').dispatchEvent(new window.Event('click',{bubbles:true}));await wait(()=>$('#generate')&&!$('#generate').disabled);assert(!$('.app').textContent.includes('EDITED_ORIGINAL_CHAT'));click('[data-page=archive]');assert.equal($('[data-open]'),null);
+ // Branch twice from the same story and verify persistence, grouping, navigation and filtering.
+ c.getTokenCountAsync=async text=>Math.ceil(text.length/3);c.characterId=0;events.get('chat')();
+ document.querySelector('#side-story-wand').dispatchEvent(new window.Event('click',{bubbles:true}));await wait(()=>$('#generate')&&!$('#generate').disabled);
+ click('[data-page=archive]');click('[data-archive-scope=all]');const original=[...records.values()].find(r=>!r.parentId);
+ click('[data-open="'+original.id+'"]');$('#followup').value='스토리 다음';finishGeneration=null;click('#continue');await wait(()=>finishGeneration);finishGeneration('NEXT_STORY');await wait(()=>records.size===3&&!$('#generate').disabled);
+ const story=[...records.values()].find(r=>r.content==='NEXT_STORY');assert(story.seriesId);assert.equal(records.get(original.id).seriesId,story.seriesId);assert($('.series-navigation'));
+ click('.series-navigation [data-open="'+original.id+'"]');$('#followup').value='HTML 다음';click('[data-continuation-mode=visual]');assert.equal($('#followup').value,'HTML 다음');finishGeneration=null;click('#continue');await wait(()=>finishGeneration);assert(calls.at(-1).quietPrompt.includes('requested target mode'));finishGeneration('<!doctype html><html><head><title>HTML branch</title></head><body>HTML_NEXT</body></html>');await wait(()=>records.size===4&&!$('#generate').disabled);
+ const html=[...records.values()].find(r=>r.mode==='visual');assert.equal(html.seriesId,story.seriesId);assert.equal(html.parentId,original.id);assert.equal(story.parentId,original.id);
+ click('[data-page=archive]');assert.equal(root.querySelectorAll('.series-card').length,1);assert.equal(root.querySelectorAll('.shelf-card').length,2);assert.equal(root.querySelectorAll('[data-archive-scope]').length,2);
+ const favoriteButton=$('.series-card [data-fav="'+html.id+'"]');favoriteButton.dispatchEvent(new window.Event('click',{bubbles:true}));await wait(()=>records.get(html.id).favorite);
+ $('#fav-only').checked=true;$('#fav-only').dispatchEvent(new window.Event('change',{bubbles:true}));assert.equal(root.querySelectorAll('.series-card').length,1);assert.equal(root.querySelectorAll('.series-card [data-open]').length,1);
+ $('#fav-only').checked=false;$('#fav-only').dispatchEvent(new window.Event('change',{bubbles:true}));click('#archive-delete-mode');assert.equal(root.querySelectorAll('[data-archive-select]').length,4);click('#archive-delete-mode');
  h.cleanup();await new Promise(r=>setTimeout(r,5));assert(saved);assert.equal(document.querySelector('#st-sidestory-root'),null);assert.equal(document.querySelector('#side-story-wand'),null);
 });
 

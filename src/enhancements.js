@@ -20,7 +20,9 @@ async function saveImage(){
  const result=$('result');if(!current||!result)throw new Error('저장할 출력 화면이 없어요.');
  if(editing)throw new Error('편집을 저장하거나 닫은 뒤 PNG로 저장해 주세요.');
  const name=(current.title||'Side-Story').replace(/[\\/:*?"<>|]/g,'_').slice(0,70),frame=result.querySelector('iframe');
+ const rawSpeak=current.mode==='speak'&&raw?result.textContent:null,rawItems=rawSpeak!==null?C.speakBlocks(displayRecord().content):[];
+ const innerNodes=[...result.querySelectorAll('.speak-inner')].map(el=>({el,open:el.open,style:el.getAttribute('style')}));
  const button=$('save-image');savingImage=true;if(button)button.disabled=true;
- try{await flushReading();const blob=await SideHTML.png(frame||result);download(name+'.png',blob,'image/png');say('현재 출력 화면을 PNG로 저장했어요.');}
- finally{savingImage=false;if(button)button.disabled=false;}
+ try{await flushReading();if(rawItems.length)result.textContent=rawItems.map((item,i)=>speakItemMarkdown({...item,inner:pngIncludeInner?item.inner:''},i,rawItems.length)).join('\n\n');for(const {el} of innerNodes){el.open=pngIncludeInner;if(!pngIncludeInner)el.style.setProperty('display','none','important');}const blob=await SideHTML.png(frame||result);download(name+'.png',blob,'image/png');say('현재 출력 화면을 PNG로 저장했어요.');}
+ finally{if(rawSpeak!==null)result.textContent=rawSpeak;for(const {el,open,style} of innerNodes){el.open=open;if(style===null)el.removeAttribute('style');else el.setAttribute('style',style);}savingImage=false;if(button)button.disabled=false;}
 }

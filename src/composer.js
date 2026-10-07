@@ -5,6 +5,7 @@ const workResults=new Map();
 function isInner(mode=s.mode){return ['speak','write'].includes(mode);}
 function switchWorkMode(mode){
  if(!C.MODES[mode])return;
+ continuationMode=null;
  s.requestDrafts[s.mode]=s.request;
  if(current?.chatId===chatId)workResults.set(current.mode,current);
  s.mode=mode;s.request=s.requestDrafts[mode]||'';

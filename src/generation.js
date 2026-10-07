@@ -15,7 +15,8 @@ function showCompletedResult(record,translation,target,signal){
  // A page/tab change should reveal the result; a chat change or cancellation must not.
  if(!alive||signal?.aborted||target!==activeChat())return false;
  closeFeature();referencesOpen=false;
- current=record;page='create';mobilePane='result';viewEpoch++;
+ s.requestDrafts[s.mode]=s.request;s.mode=record.mode;s.request=s.requestDrafts[s.mode]||'';
+ current=record;continuationMode=null;page='create';mobilePane='result';viewEpoch++;
  translationShown=translation;translationDraft=null;raw=false;editing=false;
  expanded=record.mode==='visual';
  return true;
@@ -51,7 +52,7 @@ async function generate(action='new'){
  if(action!=='new'&&!previous)return;
  const viewIdAtStart=current?.id||null,viewEpochAtStart=viewEpoch,before=current;
  const options=referenceOptions();
- if(previous)options.mode=previous.mode;
+ if(previous)options.mode=action==='continue'&&(continuationMode in C.MODES)?continuationMode:previous.mode;
  delete options.summaryByChat;
  const task=action==='new'?s.request.trim():action==='regenerate'?previous.request:
   $('followup')?.value.trim()||(action==='continue'?'앞의 결과를 바탕으로 다음 내용을 이어서 작성해줘.':'요청한 내용을 유지하면서 완전한 결과로 다시 만들어줘.');
@@ -63,7 +64,8 @@ async function generate(action='new'){
  controller=new AbortController();const signal=controller.signal;runId=H.uuid();let partial='';
  const record={
   id:H.uuid(),mode:options.mode,
-  title:(action==='continue'?'이어쓰기 · ':action==='revise'?'수정본 · ':'')+(previous?.title||task).slice(0,160),
+  title:action==='continue'?task.slice(0,160):(action==='revise'?'수정본 · ':'')+(previous?.title||task).slice(0,160),
+  action,seriesId:previous?.seriesId||(action==='continue'?'series-'+H.uuid():null),seriesTitle:previous?.seriesTitle||(action==='continue'?previous.title:null),
   request:previous?.request||task,chatId:target,chatName:previous?.chatName||'',
   characterIds:[...(s.characterIds||[])],characterNames:(s.characterIds||[]).map(id=>characters.find(c=>c.id===id)?.name||id),
   content:'',status:'partial',createdAt:Date.now(),favorite:false,settings:C.recordSettings(options),
@@ -89,14 +91,14 @@ async function generate(action='new'){
   if(!record.content.trim())throw new Error('AI가 빈 결과를 반환했어요.');
   let partialVisual=false;
   if(record.mode==='visual'){const v=C.visual(record.content);record.title=v.title||record.title;partialVisual=v.partial;}
-  record.status=partialVisual?'partial':'complete';await save(record);
+  record.status=partialVisual?'partial':'complete';await saveGenerated(record,previous);
   if(showCompletedResult(record,false,target,signal))say(partialVisual?'HTML이 출력 중간에서 끝났어요. 받은 범위까지 자동 복구해 표시하고 저장했어요.':'완성했어요. 결과 화면으로 이동했어요.');
  }catch(e){
   record.content=record.content||partial;
   const keepView=viewEpoch===viewEpochAtStart&&(current?.id||null)===viewIdAtStart;
   if(record.content){
    if(keepView)current=record;
-   try{await save(record);}catch(saveError){say('저장 실패: '+saveError.message+' · 원문을 파일로 내보내 주세요.\n'+(e.message||'생성 실패'),true);return;}
+   try{await saveGenerated(record,previous);}catch(saveError){say('저장 실패: '+saveError.message+' · 원문을 파일로 내보내 주세요.\n'+(e.message||'생성 실패'),true);return;}
   }else if(keepView)current=before;
   say(e.name==='AbortError'?'결과 수신을 중단했어요. API 처리는 서버에서 계속될 수 있어요.':e.message,true);
  }finally{
