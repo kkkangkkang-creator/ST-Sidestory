@@ -203,7 +203,7 @@ test('planning and writing stages share concise AU principles without exposing t
  const ctx={text:JSON.stringify({characters:[{name:'Slade',description:'SOURCE_REDACTED_FAMILY_AND_JOB'}],players:[],dialogue:[]})};
  const planRequest=F.planMessages(options,ctx,'urban fantasy');
  assert(planRequest[0].content.includes('one trait explain their entire life'));
- assert(planRequest[0].content.includes('STAGE 1 — AU DESIGN ONLY'));
+ assert(planRequest[0].content.includes('STAGE 1 — DESIGN AN AU LIFE'));
  assert(planRequest[1].content.includes('SOURCE_REDACTED_FAMILY_AND_JOB'));
  const plan=F.parsePlan(JSON.stringify({world:'City of factions',subjects:[{kind:'character',name:'Slade',au_name:'Aerin',core_identity:['energetic'],au_life:['family status','growing up','learning a new path'],sheet_layout:['BASICS'],avoid_copying:['SOURCE_REDACTED_FAMILY_AND_JOB']}]}),'character');
  const rows=F.writeMessages(options,plan,'urban fantasy',null,'new');
@@ -242,8 +242,8 @@ test('AU plan regeneration incorporates optional user feedback and rethinks prio
  assert(review[2].content.includes('이름과 쌍둥이 관계는 유지'));
  assert(review[2].content.includes('상단 재정 관리자'));
  assert(review[2].content.includes('not required to preserve'));
- assert(review[0].content.includes('beginning with their origin'));
- assert(review[0].content.includes('INDEPENDENT AU-born life'));
+ assert(review[0].content.includes('CHOOSE A NEW LIFE BEFORE FITTING IT TO SOURCE FACTS'));
+ assert(review[0].content.includes('DECISIVE SANITY CHECK'));
  const empty=F.planMessages(options,ctx,'무협',{previousPlan:old,feedback:'   '});
  assert(empty[2].content.includes('genuinely different overall AU life direction'));
 });
@@ -264,4 +264,15 @@ test('feedback input appears in compact AU review and escapes untrusted content'
  assert(html.includes('쌍둥이 유지 &lt;script&gt;'));
  assert(!html.includes('쌍둥이 유지 <script>'));
  assert(html.includes('facet-plan-regenerate'));
+});
+
+test('AU planner tests biography-independent social origins instead of repackaging study as family trade',()=>{
+ const f=F.clean({...F.defaults,target:'user',degree:'preserve',au:'무협'});
+ const context={text:JSON.stringify({characters:[],players:[{name:'Serena',description:'Accounting major and shy'}],dialogue:[]})};
+ const messages=F.planMessages({facet:f,lengthPreset:'normal',language:'한국어'},context,'무협');
+ assert.equal(messages.length,2);
+ for(const expected of ['WORLD FIRST','CHOOSE A NEW LIFE BEFORE FITTING IT TO SOURCE FACTS','family wealth','family background still fails','DECISIVE SANITY CHECK'])assert(messages[0].content.includes(expected),expected);
+ assert(!messages[0].content.includes('"avoid_copying"'));
+ assert(messages[1].content.includes('Accounting major'));
+ assert(messages[0].content.includes('twin'));
 });
