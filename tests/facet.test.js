@@ -2,8 +2,8 @@ import test from 'node:test';import assert from 'node:assert/strict';import fs f
 const read=n=>fs.readFileSync(new URL('../src/'+n,import.meta.url),'utf8');
 const F=new Function(read('facet.js')+';return SideFacet;')();
 const C=new Function(read('replacement.js')+read('facet.js')+read('core.js')+';return SideCore;')();
-test('facet provides an English default, migrates empty prompts, and preserves custom prompts',()=>{const preset=C.settings({}).facet.prompt;assert(preset.includes('GENRE'));assert(preset.includes('{{설정된AU}}'));assert(preset.includes('{{원본관계반영}}'));assert.equal(F.clean({prompt:''}).prompt,preset);assert.equal(F.clean({prompt:'   '}).prompt,preset);const f=F.clean({au:'Sentinel',prompt:'{{설정된AU}}',relationship:true});assert.deepEqual(C.recordSettings({mode:'facet',facet:f}).facet,f);assert.equal(C.settings({mode:'facet'}).mode,'facet');assert.equal(F.clean({prompt:'custom'}).prompt,'custom');});
-test('macros use selected phrases once, hide inactive relationship and preserve inserted literals',()=>{let f=F.clean({au:'{{char}} $&',prompt:'{{char}}|{{user}}|{{설정된AU}}|{{변경정도}}|{{유저관계설정}}|{{원본관계반영}}|{{유의사항}}',cautions:'keep name',degree:'rebuild',phrases:{rebuild:'CORE',relationOff:'NO'}});assert.equal(F.expand(f,{char:'A',user:'B'}),'A|B|{{char}} $&|CORE|NO||keep name');f.relationship=true;f.originalRelationship=false;assert(F.expand(f).includes(f.phrases.originalOff));});
+test('facet provides an English default, migrates empty prompts, and preserves custom prompts',()=>{const preset=C.settings({}).facet.prompt;assert(preset.includes('GENRE'));assert(preset.includes('{{설정된AU}}'));assert(preset.includes('{{AU대상}}'));assert(preset.includes('{{관계설정}}'));assert(preset.includes('{{상세도}}'));assert.equal(F.clean({prompt:''}).prompt,preset);assert.equal(F.clean({prompt:'   '}).prompt,preset);const f=F.clean({au:'Sentinel',prompt:'{{설정된AU}}',relationship:true});assert.deepEqual(C.recordSettings({mode:'facet',facet:f}).facet,f);assert.equal(C.settings({mode:'facet'}).mode,'facet');assert.equal(F.clean({prompt:'custom'}).prompt,'custom');});
+test('macros use selected phrases once, hide inactive relationship and preserve inserted literals',()=>{let f=F.clean({au:'{{char}} $&',prompt:'{{char}}|{{user}}|{{설정된AU}}|{{변경정도}}|{{유저관계설정}}|{{원본관계반영}}|{{유의사항}}',cautions:'keep name',degree:'rebuild',phrases:{rebuild:'CORE',relationOff:'NO'}});assert.equal(F.expand(f,{char:'A',user:'B'}),'A|B|{{char}} $&|CORE|NO||keep name');f.relation='new';assert(F.expand(f,{char:'A',user:'B'}).includes(f.phrases.originalOff));});
 test('new character receives profile in description without modifying original card',async()=>{const original={avatar:'a.png',name:'A',description:'original'};let sent;const host=createSTHost({context:()=>({characters:[original],getRequestHeaders:()=>({'Content-Type':'application/json'})}),fetcher:async(url,opts)=>{sent={url,body:JSON.parse(opts.body)};return {ok:true,text:async()=> 'A AU.png'};}});assert.equal(await host.createCharacterFromProfile({name:'A AU',description:'edited profile'}),'A AU.png');assert.equal(sent.url,'/api/characters/create');assert.equal(sent.body.description,'edited profile');assert.equal(sent.body.first_mes,'');assert.equal(original.description,'original');host.cleanup();});
 
 test('English default prompt expands all macros with selected instructions',()=>{const f=F.clean({au:'Suggest powers',degree:'rebuild',relationship:true,originalRelationship:false,cautions:'No symbolism'});const s=F.expand(f,{char:'Serena',user:'Slade'});assert(s.includes('Suggest powers'));assert(s.includes('Serena'));assert(s.includes('Slade'));assert(s.includes('No symbolism'));assert(s.includes('broad reinterpretation'));assert(s.includes('fitting alternative'));assert(!s.includes('{{설정된AU}}'));assert(!s.includes('{{원본관계반영}}'));});
@@ -13,3 +13,46 @@ test('old Korean and previous English defaults migrate without replacing custom 
 test('full macro matrix selects exactly the relevant instructions',()=>{for(const degree of ['preserve','rebuild'])for(const relationship of [false,true])for(const originalRelationship of [false,true]){const f=F.clean({au:'Romance fantasy AU',degree,relationship,originalRelationship,cautions:'Avoid forced symbolism'});const expanded=F.expand(f,{char:'Character A',user:'Player B'});assert(expanded.includes(f.phrases[degree]));assert(expanded.includes(f.phrases[relationship?'relationOn':'relationOff']));assert.equal(expanded.includes(f.phrases[originalRelationship?'originalOn':'originalOff']),relationship);assert(expanded.includes('Avoid forced symbolism'));assert(expanded.includes('Character A'));assert(expanded.includes('Player B'));assert(!expanded.includes('{{설정된AU}}'));}});
 
 test('English base prompt reduces purple prose and requests concise adult trait labels',()=>{const p=F.clean().prompt;assert(p.includes('RESTRAINED CHARACTER-PROFILE PROSE'));assert(p.includes('NON-GRAPHIC ADULT INTIMATE TRAITS'));assert(p.includes('predator-like'));assert(p.includes('praise kink'));assert(!p.includes('극심한'));assert(!p.includes('포식자'));const saved=F.clean({prompt:'My own prompt'});assert.equal(saved.prompt,'My own prompt');});
+
+test('new target switch and three relationship modes follow character and persona roles',()=>{
+ for(const target of ['character','user','both']){
+  const f=F.clean({target,relation:'original',au:'Hunter AU'});
+  const expanded=F.expand(f,{char:'Character',user:'Persona',detail:'detailed'});
+  assert(expanded.includes('Character'));assert(expanded.includes('Persona'));
+  assert(expanded.includes(f.phrases.originalOn));
+  assert(expanded.includes(F.DETAIL_HINTS.detailed));
+  assert.equal(f.target,target);
+ }
+ const user=F.expand({target:'user',relation:'none'},{char:'Slade',user:'Serena'});
+ assert(user.includes('USER PERSONA ONLY'));
+ const fresh=F.expand({target:'both',relation:'new'},{char:'Slade',user:'Serena'});
+ assert(fresh.includes('BOTH:'));assert(fresh.includes(F.clean().phrases.originalOff));
+ const missing=F.expand({target:'user',relation:'new'},{char:'',user:'Serena'});
+ assert(!missing.includes(F.clean().phrases.originalOff));
+});
+test('legacy relationship fields and custom prompt remain valid',()=>{
+ assert.equal(F.clean({relationship:true,originalRelationship:true}).relation,'original');
+ assert.equal(F.clean({relationship:true,originalRelationship:false}).relation,'new');
+ assert.equal(F.clean({relationship:false}).relation,'none');
+ assert.equal(F.clean({target:'user',relation:'original',prompt:'custom {{AU대상}}'}).prompt,'custom {{AU대상}}');
+ assert.equal(C.settings({lengthPreset:'short'}).lengthPreset,'brief');
+ assert.equal(C.settings({lengthPreset:'middle'}).lengthPreset,'normal');
+ assert.equal(C.settings({lengthPreset:'long'}).lengthPreset,'detailed');
+ assert.equal(C.settings({lengthPreset:'flexible'}).lengthPreset,'normal');
+ const prompt=C.contextualPrompt(C.settings({mode:'story',lengthPreset:'detailed'}),'scene');
+ assert(prompt.includes('Detail level (not a token target)'));
+ assert(!prompt.includes('Aim for roughly 10,000'));
+});
+test('dual-target output can save each complete source sheet independently',()=>{
+ const full='<!-- SIDESTORY_CHARACTER_PROFILE -->\nName: A\nPower: Sentinel\n<!-- SIDESTORY_USER_PROFILE -->\nName: B\nPower: Guide';
+ assert.equal(F.profileForSave(full,{target:'both'},'character'),'Name: A\nPower: Sentinel');
+ assert.equal(F.profileForSave(full,{target:'both'},'user'),'Name: B\nPower: Guide');
+ assert.throws(()=>F.profileForSave('no section markers',{target:'both'},'user'),/구분 표시/);
+ assert.throws(()=>F.profileForSave('text',{target:'user'},'character'),/일치하지/);
+ assert.equal(F.profileForSave('Name: B',{target:'user'},'user'),'Name: B');
+ const messages=F.messages({facet:{target:'both',relation:'original',au:'Hunter'},lengthPreset:'detailed',language:'한국어'},
+ {text:JSON.stringify({characters:[{name:'A'}],players:[{name:'B'}]})},'Hunter',null,'new');
+ assert(messages[0].content.includes('SIDESTORY_CHARACTER_PROFILE'));
+ assert(messages[0].content.includes('SIDESTORY_USER_PROFILE'));
+ assert(messages[0].content.includes(F.DETAIL_HINTS.detailed));
+});

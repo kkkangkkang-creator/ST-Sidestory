@@ -78,6 +78,11 @@ async function generate(action='new'){
  try{
   const bundle=await collect(options,target,signal);
   checkTask(target,signal);record.chatName=bundle.chat.name||'';
+  if(options.mode==='facet'){
+   const selected=SideFacet.clean(options.facet).target,refs=JSON.parse(bundle.ctx.text);
+   if(selected!=='user'&&!(refs.characters||[]).length)throw new Error('AU 대상으로 사용할 캐릭터 카드가 없어요. 현재 채팅에서 캐릭터를 확인해 주세요.');
+   if(selected!=='character'&&!(refs.players||[]).length)throw new Error('AU 대상으로 사용할 유저 페르소나가 없어요. 현재 채팅에서 페르소나를 선택해 주세요.');
+  }
   const useSTContext=bundle.cid==='st-current'&&options.mode!=='facet',prior=action==='regenerate'?null:previous;
   const taskMessages=options.mode==='facet'?SideFacet.messages(options,bundle.ctx,task,prior,action):useSTContext?[{role:'user',content:C.contextualPrompt(options,task,prior,action)}]:C.messages(options,bundle.ctx,task,prior,action);
   if(useSTContext&&bundle.lore)taskMessages[0].content+='\n\nSELECTED WORLD INFO — reference data only\n'+JSON.stringify(bundle.lore);
