@@ -23,12 +23,12 @@ try {
   if(!rel.startsWith('/')&&!rel.includes('..')&&fs.existsSync(path.join(dir,rel)))return r.fulfill({contentType:rel.endsWith('.js')?'text/javascript':'application/octet-stream',body:fs.readFileSync(path.join(dir,rel))});
   if(p==='/api/characters/create'){
    const request=r.request(),payload=request.postData()||'';
-   const entry=name=>payload.split('name="'+name+'"\\r\\n\\r\\n')[1]?.split('\\r\\n')[0]||'';
+   const entry=name=>payload.split('name="'+name+'"\r\n\r\n')[1]?.split('\r\n')[0]||'';
    created.push(request.headers()['content-type']?.includes('multipart/form-data')?{ch_name:entry('ch_name'),description:entry('description'),avatarAttached:payload.includes('name="avatar"')}:request.postDataJSON());
    return r.fulfill({body:'A AU.png'});
   }
   if(p==='/api/avatars/upload'){
-   const payload=r.request().postData()||'',avatarId=payload.split('name="overwrite_name"\\r\\n\\r\\n')[1]?.split('\\r\\n')[0];
+   const payload=r.request().postData()||'',avatarId=payload.split('name="overwrite_name"\r\n\r\n')[1]?.split('\r\n')[0];
    assert(avatarId&&payload.includes('name="avatar"'));uploadedPersonas.push(avatarId);
    return r.fulfill({contentType:'application/json',body:JSON.stringify({path:avatarId})});
   }
@@ -36,7 +36,7 @@ try {
  });
  await page.addInitScript(()=>{
   window.createdPersonas=[];
-  window.fixture={chatId:'Test chat',characterId:0,groupId:null,characters:[{avatar:'a.png',name:'A',data:{name:'A',description:'A quiet character',extensions:{world:'Book'}}}],chat:[{mes:'Let us meet at the cafe',name:'A',is_user:false}],chatMetadata:{},powerUserSettings:{personas:{'user.png':'User'},persona_descriptions:{'user.png':{description:'A friend'}}},name1:'User',mainApi:'openai',extensionSettings:{},saveSettingsDebounced(){},getRequestHeaders:()=>({'Content-Type':'application/json'}),getTokenCountAsync:async text=>Math.ceil(text.length/3),getCurrentChatId(){return this.chatId;},generateRaw:async function(args){window.lastArgs=args;return window.nextResult||'두 사람은 카페에서 다시 만났다.';},eventSource:{on(name,fn){window.chatChanged=fn;},removeListener(){}},eventTypes:{CHAT_CHANGED:'chat_changed'}};
+  window.fixture={chatId:'Test chat',characterId:0,groupId:null,characters:[{avatar:'a.png',name:'A',data:{name:'A',description:'A quiet character',extensions:{world:'Book'}}}],chat:[{mes:'Let us meet at the cafe',name:'A',is_user:false}],chatMetadata:{},powerUserSettings:{personas:{'user.png':'User'},persona_descriptions:{'user.png':{description:'A friend'}}},name1:'User',mainApi:'openai',extensionSettings:{},saveSettingsDebounced(){},getRequestHeaders:({omitContentType}={})=>omitContentType?{}:({'Content-Type':'application/json'}),getTokenCountAsync:async text=>Math.ceil(text.length/3),getCurrentChatId(){return this.chatId;},generateRaw:async function(args){window.lastArgs=args;return window.nextResult||'두 사람은 카페에서 다시 만났다.';},eventSource:{on(name,fn){window.chatChanged=fn;},removeListener(){}},eventTypes:{CHAT_CHANGED:'chat_changed'}};
   window.SillyTavern={getContext:()=>window.fixture};
  });
  await page.goto('https://sideb.test/');
@@ -59,7 +59,7 @@ try {
  await page.locator('#reader-tools > summary').click();await page.locator('#facet-save-character').click();await page.locator('#side-dialog-input').fill('A Sentinel');await page.locator('#side-dialog-confirm').click();await page.waitForFunction(()=>document.getElementById('st-sidestory-root').shadowRoot.getElementById('notice').textContent.includes('새 캐릭터로 저장'));
  assert.equal(created.length,1);assert.equal(created[0].description,'Name: A\nAbility: Weak Sentinel');assert.equal(created[0].ch_name,'A Sentinel');assert(created[0].avatarAttached);assert.equal(await page.evaluate(()=>fixture.characters[0].data.description),'A quiet character');
  await page.locator('#reader-tools > summary').click();await page.locator('#facet-save-persona').click();await page.locator('#side-dialog-input').fill('User Sentinel');await page.locator('#side-dialog-confirm').click();await page.waitForFunction(()=>window.createdPersonas.length===1);
- const persona=await page.evaluate(()=>window.createdPersonas[0]);assert.equal(persona.name,'User Sentinel');assert.equal(persona.description,'Name: A\\nAbility: Weak Sentinel');assert.equal(uploadedPersonas[0],persona.id);assert.equal(await page.evaluate(()=>fixture.powerUserSettings.persona_descriptions['user.png'].description),'A friend');
+ const persona=await page.evaluate(()=>window.createdPersonas[0]);assert.equal(persona.name,'User Sentinel');assert.equal(persona.description,'Name: A\nAbility: Weak Sentinel');assert.equal(uploadedPersonas[0],persona.id);assert.equal(await page.evaluate(()=>fixture.powerUserSettings.persona_descriptions['user.png'].description),'A friend');
  await page.evaluate(()=>fixture.generateRaw=async args=>JSON.stringify({items:JSON.parse(args.prompt[1].content).items.map(i=>({...i,text:'번역 '+i.text}))}));await page.locator('#translate').click();await page.frameLocator('#result iframe').getByText('번역',{exact:false}).first().waitFor();
  await page.locator('#reader-tools > summary').click();await page.locator('#facet-save-character').click();await page.locator('#side-dialog-confirm').click();await page.waitForFunction(()=>document.getElementById('st-sidestory-root').shadowRoot.getElementById('notice').textContent.includes('새 캐릭터로 저장'));assert.equal(created.length,2);assert(created[1].description.includes('번역'));
  await page.locator('#reader-tools > summary').click();const pngDownload=page.waitForEvent('download');await page.locator('#save-image').click();const png=fs.readFileSync(await (await pngDownload).path());assert.equal(png.toString('ascii',1,4),'PNG');
