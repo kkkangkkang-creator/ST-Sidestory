@@ -37,7 +37,7 @@ try {
  await page.addInitScript(()=>{
   window.createdPersonas=[];window.generatedArgs=[];
   window.fixture={chatId:'Test chat',characterId:0,groupId:null,characters:[{avatar:'a.png',name:'A',data:{name:'A',description:'A quiet character',extensions:{world:'Book'}}}],chat:[{mes:'Let us meet at the cafe',name:'A',is_user:false}],chatMetadata:{},powerUserSettings:{personas:{'user.png':'User'},persona_descriptions:{'user.png':{description:'A friend'}}},name1:'User',mainApi:'openai',extensionSettings:{},saveSettingsDebounced(){},getRequestHeaders:({omitContentType}={})=>omitContentType?{}:({'Content-Type':'application/json'}),getTokenCountAsync:async text=>Math.ceil(text.length/3),getCurrentChatId(){return this.chatId;},generateRaw:async function(args){window.lastArgs=args;window.generatedArgs.push(args);
-    if(args.prompt?.[0]?.content.includes('You are designing an alternate-universe life')){
+    if(args.prompt?.[0]?.content.includes('# STAGE 1 — AU DESIGN ONLY')){
       const task=JSON.parse(args.prompt[1].content.split('CURRENT TASK\n')[1]);
       const kinds=task.target==='both'?['character','user']:[task.target];
       return JSON.stringify({world:'A coherent alternate fantasy world',subjects:kinds.map(kind=>({kind,name:kind==='character'?'A':'User',au_name:kind==='character'?'사토 렌':'사토 유이',name_reason:'Japanese school name',core_identity:['distinct personality'],au_life:['a real local profession','a genre-fitting upbringing','independent formative events'],sheet_layout:['BASICS: Name, Ability'],relationships:[],avoid_copying:['old setting']})),relationship:'none',genre_checks:['no anachronisms']});
@@ -53,7 +53,7 @@ try {
  await page.locator('[data-mode="facet"]').click();
  await page.locator('[data-facet="au"]').fill('Sentinel AU');
  await page.locator('[data-facet-choice="degree"][data-value="rebuild"]').click();assert.equal(await page.locator('[data-facet-choice="degree"][data-value="rebuild"]').getAttribute('aria-pressed'),'true');
- await page.locator('.facet-prompt > summary').click();const defaultPrompt=await page.locator('[data-facet="prompt"]').inputValue();assert(defaultPrompt.includes('GENRE'));assert(defaultPrompt.includes('{{설정된AU}}'));assert(defaultPrompt.includes('SAME PERSON WHO HAS LIVED A DIFFERENT LIFE'));assert(defaultPrompt.includes('SOURCE PROFILE FORMAT VS SOURCE-WORLD FACTS'));
+ await page.locator('.facet-prompt > summary').click();const defaultPrompt=await page.locator('[data-facet="prompt"]').inputValue();assert(defaultPrompt.includes('GENRE'));assert(defaultPrompt.includes('{{설정된AU}}'));assert(defaultPrompt.includes('The person should be recognizable'));assert(defaultPrompt.includes('SOURCE SHEET AS AN OUTPUT SHAPE'));
  await page.locator('[data-facet="prompt"]').fill('{{char}} / {{user}} / {{설정된AU}} / {{변경정도}} / {{유저관계설정}} / {{원본관계반영}} / {{유의사항}}');
  await page.locator('[data-facet="cautions"]').fill('Keep the original headings');
  await page.locator('[data-facet-choice="relation"][data-value="original"]').click();assert.equal(await page.locator('[data-facet-choice="relation"][aria-pressed="true"]').getAttribute('data-value'),'original');

@@ -6,14 +6,40 @@ test('facet supplies a revised English prompt and migrates prior prompt settings
 test('macros use selected phrases once, hide inactive relationship and preserve inserted literals',()=>{let f=F.clean({promptRevision:F.defaults.promptRevision,au:'{{char}} $&',prompt:'{{char}}|{{user}}|{{설정된AU}}|{{변경정도}}|{{유저관계설정}}|{{원본관계반영}}|{{유의사항}}',cautions:'keep name',degree:'rebuild',phrases:{rebuild:'CORE',relationOff:'NO'}});assert.equal(F.expand(f,{char:'A',user:'B'}),'A|B|{{char}} $&|CORE|NO||keep name');f.relation='new';assert(F.expand(f,{char:'A',user:'B'}).includes(f.phrases.originalOff));});
 test('new character receives profile in description without modifying original card',async()=>{const original={avatar:'a.png',name:'A',description:'original'};let sent;const host=createSTHost({context:()=>({characters:[original],getRequestHeaders:()=>({'Content-Type':'application/json'})}),fetcher:async(url,opts)=>{sent={url,body:JSON.parse(opts.body)};return {ok:true,text:async()=> 'A AU.png'};}});assert.equal(await host.createCharacterFromProfile({name:'A AU',description:'edited profile'}),'A AU.png');assert.equal(sent.url,'/api/characters/create');assert.equal(sent.body.description,'edited profile');assert.equal(sent.body.first_mes,'');assert.equal(original.description,'original');host.cleanup();});
 
-test('English default prompt expands all macros with selected instructions',()=>{const f=F.clean({au:'Suggest powers',degree:'rebuild',relationship:true,originalRelationship:false,cautions:'No symbolism'});const s=F.expand(f,{char:'Serena',user:'Slade'});assert(s.includes('Suggest powers'));assert(s.includes('Serena'));assert(s.includes('Slade'));assert(s.includes('No symbolism'));assert(s.includes('NEW-LIFE RECONSTRUCTION'));assert(s.includes('fitting alternative'));assert(!s.includes('{{설정된AU}}'));assert(!s.includes('{{원본관계반영}}'));});
-
-test('all six prepared English macro instructions are substantive and independent',()=>{const f=F.clean();for(const [key,value] of Object.entries(f.phrases)){assert(value.length>200,key+' should give useful guidance');assert(!/[가-힣]/.test(value),key+' should be English');}assert(f.phrases.preserve.includes('narrative purpose'));assert(f.phrases.rebuild.includes('Independently construct'));assert(f.phrases.relationOn.includes('do not force a relationship section'));assert(f.phrases.relationOff.includes('Do not create'));assert(f.phrases.originalOn.includes('existing level of familiarity'));assert(f.phrases.originalOff.includes('fitting alternative'));});
+test('English default prompt expands AU, scope, degree and relationship macros',()=>{
+ const f=F.clean({au:'Suggest powers',degree:'rebuild',relationship:true,originalRelationship:false,cautions:'No forced symbolism'});
+ const result=F.expand(f,{char:'Serena',user:'Slade'});
+ for(const v of ['Suggest powers','Serena','Slade','No forced symbolism','NEW-LIFE RECONSTRUCTION','Invent a relationship'])assert(result.includes(v),v);
+ assert(!result.includes('{{설정된AU}}'));
+ assert(!result.includes('{{원본관계반영}}'));
+});
+test('six degree and relationship macro instructions remain independent and general',()=>{
+ const f=F.clean();
+ for(const [key,value] of Object.entries(f.phrases)){
+  assert(value.length>200,key);
+  assert(!/[가-힣]/.test(value),key+' must be English');
+ }
+ assert(f.phrases.preserve.includes('broad themes'));
+ assert(f.phrases.rebuild.includes('different life'));
+ assert(f.phrases.relationOn.includes('selected relationship option'));
+ assert(f.phrases.relationOff.includes('Do not create'));
+ assert(f.phrases.originalOn.includes('family ties'));
+ assert(f.phrases.originalOff.includes('independent'));
+});
 test('legacy custom phrases are replaced once and updated custom phrases can be edited',()=>{const ko={"preserve":"원본 설정을 최대한 유지하고 AU에 필요한 부분만 수정합니다.","rebuild":"캐릭터의 핵심 정체성을 유지하되 AU에 맞게 설정을 폭넓게 재구성합니다.","relationOn":"유저와의 관계를 설정합니다.","relationOff":"유저와의 관계는 설정하지 않습니다.","originalOn":"원본의 유저와의 관계를 반영합니다.","originalOff":"원본 관계에 얽매이지 않고 새로운 관계를 설정합니다."};const en={"preserve":"Preserve the original character settings as much as possible, adding or changing only what the request requires.","rebuild":"Keep the character’s recognizable core identity, but allow broad reinterpretation of background, roles, abilities, and other details where suitable.","relationOn":"Define a relationship involving the user when relevant to the request.","relationOff":"Do not create or specify a relationship with the user.","originalOn":"Reflect the established relationship with the user.","originalOff":"The relationship need not follow the original dynamic; create a fitting alternative if the request calls for one."};const defaults=F.clean().phrases;for(const key of Object.keys(defaults)){assert.equal(F.clean({phrases:{[key]:ko[key]}}).phrases[key],defaults[key]);assert.equal(F.clean({phrases:{[key]:en[key]}}).phrases[key],defaults[key]);assert.equal(F.clean({phrases:{[key]:'Custom '+key}}).phrases[key],defaults[key]);assert.equal(F.clean({...F.defaults,phrases:{...defaults,[key]:'Custom '+key}}).phrases[key],'Custom '+key);}});
 test('full macro matrix selects exactly the relevant instructions',()=>{for(const degree of ['preserve','rebuild'])for(const relationship of [false,true])for(const originalRelationship of [false,true]){const f=F.clean({au:'Romance fantasy AU',degree,relationship,originalRelationship,cautions:'Avoid forced symbolism'});const expanded=F.expand(f,{char:'Character A',user:'Player B'});assert(expanded.includes(f.phrases[degree]));assert(expanded.includes(f.phrases[relationship?'relationOn':'relationOff']));assert.equal(expanded.includes(f.phrases[originalRelationship?'originalOn':'originalOff']),relationship);assert(expanded.includes('Avoid forced symbolism'));assert(expanded.includes('Character A'));assert(expanded.includes('Player B'));assert(!expanded.includes('{{설정된AU}}'));}});
 
-test('English base prompt reduces purple prose and requests concise adult trait labels',()=>{const p=F.clean().prompt;assert(p.includes('RESTRAINED CHARACTER-PROFILE PROSE'));assert(p.includes('NON-GRAPHIC ADULT INTIMATE TRAITS'));assert(p.includes('predator-like'));assert(p.includes('praise kink'));assert(!p.includes('극심한'));assert(!p.includes('포식자'));const saved=F.clean({...F.defaults,prompt:'My own prompt'});assert.equal(saved.prompt,'My own prompt');});
-
+test('compact default prompt retains genre, non-graphic profile and anti-mechanical adaptation rules',()=>{
+ const p=F.clean().prompt;
+ assert(p.includes('RESTRAINED CHARACTER-PROFILE PROSE'));
+ assert(p.includes('NON-GRAPHIC ADULT INTIMATE TRAITS'));
+ assert(p.includes('the requested GENRE'));
+ assert(p.includes('one trait explain their entire life'));
+ assert(p.includes('jobs')===false); // no long profession-specific checklist
+ assert(p.length<8500);
+ const saved=F.clean({...F.defaults,prompt:'My own prompt'});
+ assert.equal(saved.prompt,'My own prompt');
+});
 test('new target switch and three relationship modes follow character and persona roles',()=>{
  for(const target of ['character','user','both']){
   const f=F.clean({target,relation:'original',au:'Hunter AU'});
@@ -57,21 +83,16 @@ test('dual-target output can save each complete source sheet independently',()=>
  assert(messages[0].content.includes(F.DETAIL_HINTS.detailed));
 });
 
-test('reconstruction is a different workflow from minimal AU reskinning while retaining original sheet format',()=>{
+test('both AU degrees retain character without preserving a copied biography or losing sheet format',()=>{
  const f=F.clean({...F.defaults,degree:'rebuild',target:'user',au:'Sentinel AU'});
- const prompt=F.expand(f,{char:'Character',user:'Persona'});
- assert(prompt.includes('SAME PERSON WHO HAS LIVED A DIFFERENT LIFE'));
- assert(prompt.includes('SOURCE PROFILE FORMAT VS SOURCE-WORLD FACTS'));
- assert(prompt.includes('preserve the source sheet FORMAT'));
- assert(prompt.includes('not required continuity'));
- assert(prompt.includes('musician need not be a sound mage'));
- assert(prompt.includes('headings, field order, layout'));
- assert(prompt.includes(f.phrases.rebuild));
- assert(!prompt.includes('{{변경정도}}'));
- const restrained=F.expand(F.clean({...F.defaults,degree:'preserve'}),{char:'Character',user:'Persona'});
- assert(restrained.includes(F.defaults.phrases.preserve));
- assert(restrained.includes('SOURCE-GROUNDED RECONSTRUCTION'));
- assert.notEqual(F.defaults.phrases.preserve,F.defaults.phrases.rebuild);
+ const expanded=F.expand(f,{char:'Character',user:'Persona'});
+ for(const piece of ['the original biography wearing different vocabulary','SOURCE SHEET AS AN OUTPUT SHAPE','FORMAT constraint','not a command to keep','source sheet','NEW-LIFE RECONSTRUCTION'])
+  assert(expanded.includes(piece),piece);
+ assert(expanded.includes(f.phrases.rebuild));
+ assert(!expanded.includes('{{변경정도}}'));
+ const anchored=F.expand(F.clean({...F.defaults,degree:'preserve'}),{char:'Character',user:'Persona'});
+ assert(anchored.includes('SOURCE-GROUNDED RECONSTRUCTION'));
+ assert(anchored.includes('not a renamed biography'));
 });
 test('previously saved editor prompt and degree phrases reset exactly once on upgrade',()=>{
  const old=F.clean({target:'user',degree:'rebuild',relation:'new',au:'Guide AU',cautions:'No role swapping',
@@ -135,8 +156,8 @@ test('cultural AU naming applies to Japanese, wuxia and original family ties',()
  const opts={facet:f,lengthPreset:'normal',language:'한국어'};
  const planning=F.planMessages(opts,{text:JSON.stringify({characters:[{name:'Slade'}],players:[{name:'Serena'}],dialogue:[]})},'일본 고등학교 AU');
  assert(planning[0].content.includes('Japanese school AU'));
- assert(planning[0].content.includes('潘Slade'));
- assert(planning[0].content.includes('siblings or twins'));
+ assert(planning[0].content.includes('Japanese school AU'));
+ assert(planning[0].content.includes('twins or siblings'));
  const blueprint=F.parsePlan(JSON.stringify({world:'현대 일본 고등학교',subjects:[
    {kind:'character',name:'Slade',au_name:'사토 렌 (佐藤 蓮)',name_reason:'일본 고등학교',core_identity:['자신만만함'],au_life:['학생','학생회 대립','동아리'],sheet_layout:['BASICS: Name']},
    {kind:'user',name:'Serena',au_name:'사토 유이 (佐藤 結衣)',name_reason:'쌍둥이 남매',core_identity:['예리함'],au_life:['학생','도서위원','쌍둥이 오빠'],sheet_layout:['BASICS: Name']}
@@ -174,4 +195,23 @@ test('incomplete model JSON gives an actionable failure instead of silent accept
  const valid=JSON.stringify({world:'무협',subjects:[{kind:'character',name:'Slade',au_name:'백서혁',core_identity:['bold'],au_life:['traveler','student','swordsman'],sheet_layout:['BASICS']}]});
  assert.throws(()=>F.parsePlan(valid.slice(0,-20),'character'),/중간에 잘렸어요/);
  assert.throws(()=>F.parsePlan('I cannot output JSON','character'),/JSON/);
+});
+
+test('planning and writing stages share concise AU principles without exposing the old life',()=>{
+ const facet=F.clean({...F.defaults,target:'character',degree:'rebuild',au:'urban fantasy'});
+ const options={facet,lengthPreset:'normal',language:'한국어'};
+ const ctx={text:JSON.stringify({characters:[{name:'Slade',description:'SOURCE_REDACTED_FAMILY_AND_JOB'}],players:[],dialogue:[]})};
+ const planRequest=F.planMessages(options,ctx,'urban fantasy');
+ assert(planRequest[0].content.includes('one trait explain their entire life'));
+ assert(planRequest[0].content.includes('STAGE 1 — AU DESIGN ONLY'));
+ assert(planRequest[1].content.includes('SOURCE_REDACTED_FAMILY_AND_JOB'));
+ const plan=F.parsePlan(JSON.stringify({world:'City of factions',subjects:[{kind:'character',name:'Slade',au_name:'Aerin',core_identity:['energetic'],au_life:['family status','growing up','learning a new path'],sheet_layout:['BASICS'],avoid_copying:['SOURCE_REDACTED_FAMILY_AND_JOB']}]}),'character');
+ const rows=F.writeMessages(options,plan,'urban fantasy',null,'new');
+ assert(rows[0].content.includes('STAGE 2 — WRITE FROM APPROVED DESIGN'));
+ assert(rows[0].content.includes('one trait explain their entire life'));
+ assert(!rows.some(r=>r.content.includes('SOURCE_REDACTED_FAMILY_AND_JOB')));
+ assert(rows[1].content.includes('Aerin'));
+ assert(!rows[1].content.includes('avoid_copying'));
+ assert(planRequest[0].content.length<13000);
+ assert(rows[0].content.length<12000);
 });
