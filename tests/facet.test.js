@@ -9,7 +9,7 @@ test('new character receives profile in description without modifying original c
 test('English default prompt expands AU, scope, degree and relationship macros',()=>{
  const f=F.clean({au:'Suggest powers',degree:'rebuild',relationship:true,originalRelationship:false,cautions:'No forced symbolism'});
  const result=F.expand(f,{char:'Serena',user:'Slade'});
- for(const v of ['Suggest powers','Serena','Slade','No forced symbolism','NEW-LIFE RECONSTRUCTION','Invent a relationship'])assert(result.includes(v),v);
+ for(const v of ['Suggest powers','Serena','Slade','No forced symbolism','ESSENCE-ONLY CONTINUITY','RECONSTRUCT THE RELATIONSHIP'])assert(result.includes(v),v);
  assert(!result.includes('{{설정된AU}}'));
  assert(!result.includes('{{원본관계반영}}'));
 });
@@ -31,10 +31,10 @@ test('full macro matrix selects exactly the relevant instructions',()=>{for(cons
 
 test('compact default prompt retains genre, non-graphic profile and anti-mechanical adaptation rules',()=>{
  const p=F.clean().prompt;
- assert(p.includes('RESTRAINED CHARACTER-PROFILE PROSE'));
- assert(p.includes('NON-GRAPHIC ADULT INTIMATE TRAITS'));
- assert(p.includes('the requested GENRE'));
- assert(p.includes('one trait explain their entire life'));
+ assert(p.includes('# WORLD AND GENRE'));
+ assert(p.includes('non-graphic'));
+ assert(p.includes('recognizable genre conventions'));
+ assert(p.includes('coherent independent life'));
  assert(p.includes('jobs')===false); // no long profession-specific checklist
  assert(p.length<8500);
  const saved=F.clean({...F.defaults,prompt:'My own prompt'});
@@ -86,13 +86,13 @@ test('dual-target output can save each complete source sheet independently',()=>
 test('both AU degrees retain character without preserving a copied biography or losing sheet format',()=>{
  const f=F.clean({...F.defaults,degree:'rebuild',target:'user',au:'Sentinel AU'});
  const expanded=F.expand(f,{char:'Character',user:'Persona'});
- for(const piece of ['the original biography wearing different vocabulary','SOURCE SHEET AS AN OUTPUT SHAPE','FORMAT constraint','not a command to keep','source sheet','NEW-LIFE RECONSTRUCTION'])
+ for(const piece of ['translating their original biographies','Character Sheets','biographical continuity','biographical templates','source sheets','ESSENCE-ONLY CONTINUITY'])
   assert(expanded.includes(piece),piece);
  assert(expanded.includes(f.phrases.rebuild));
  assert(!expanded.includes('{{변경정도}}'));
  const anchored=F.expand(F.clean({...F.defaults,degree:'preserve'}),{char:'Character',user:'Persona'});
- assert(anchored.includes('SOURCE-GROUNDED RECONSTRUCTION'));
- assert(anchored.includes('not retaining the same job'));
+ assert(anchored.includes('SOURCE-FOCUSED CONTINUITY'));
+ assert(anchored.includes('psychological continuity'));
 });
 test('previously saved editor prompt and degree phrases reset exactly once on upgrade',()=>{
  const old=F.clean({target:'user',degree:'rebuild',relation:'new',au:'Guide AU',cautions:'No role swapping',
@@ -202,13 +202,13 @@ test('planning and writing stages share concise AU principles without exposing t
  const options={facet,lengthPreset:'normal',language:'한국어'};
  const ctx={text:JSON.stringify({characters:[{name:'Slade',description:'SOURCE_REDACTED_FAMILY_AND_JOB'}],players:[],dialogue:[]})};
  const planRequest=F.planMessages(options,ctx,'urban fantasy');
- assert(planRequest[0].content.includes('one trait explain their entire life'));
+ assert(planRequest[0].content.includes('coherent independent life'));
  assert(planRequest[0].content.includes('STAGE 1 — DESIGN AN AU LIFE'));
  assert(planRequest[1].content.includes('SOURCE_REDACTED_FAMILY_AND_JOB'));
  const plan=F.parsePlan(JSON.stringify({world:'City of factions',subjects:[{kind:'character',name:'Slade',au_name:'Aerin',core_identity:['energetic'],au_life:['family status','growing up','learning a new path'],sheet_layout:['BASICS'],avoid_copying:['SOURCE_REDACTED_FAMILY_AND_JOB']}]}),'character');
  const rows=F.writeMessages(options,plan,'urban fantasy',null,'new');
  assert(rows[0].content.includes('STAGE 2 — WRITE FROM APPROVED DESIGN'));
- assert(rows[0].content.includes('one trait explain their entire life'));
+ assert(rows[0].content.includes('coherent independent life'));
  assert(!rows.some(r=>r.content.includes('SOURCE_REDACTED_FAMILY_AND_JOB')));
  assert(rows[1].content.includes('Aerin'));
  assert(!rows[1].content.includes('avoid_copying'));
@@ -220,13 +220,13 @@ test('AU reconstruction degree changes psychological continuity, never requiring
  const b=F.clean({...F.defaults,target:'both',degree:'rebuild',relation:'original',au:'무협'});
  for(const cfg of [a,b]){
   const prompt=F.expand(cfg,{char:'Slade',user:'Serena'});
-  assert(prompt.includes('freely permit new family circumstances'));
-  assert(prompt.includes('HOW they think, feel, choose, and relate'));
+  assert(prompt.includes('Create plausible origins'));
+  assert(prompt.includes('distinctive ways of perceiving'));
   assert(prompt.includes('verified family ties'));
   assert(prompt.includes('AU')||prompt.includes('무협'));
  }
  assert(a.phrases.preserve.includes('psychological'));
- assert(a.phrases.preserve.includes('not retaining the same job'));
+ assert(a.phrases.preserve.includes('psychological continuity'));
  assert(b.phrases.rebuild.includes('substantially different upbringing'));
  assert(b.phrases.rebuild.includes('outward expression'));
 });
@@ -242,8 +242,8 @@ test('AU plan regeneration incorporates optional user feedback and rethinks prio
  assert(review[2].content.includes('이름과 쌍둥이 관계는 유지'));
  assert(review[2].content.includes('상단 재정 관리자'));
  assert(review[2].content.includes('not required to preserve'));
- assert(review[0].content.includes('CHOOSE A NEW LIFE BEFORE FITTING IT TO SOURCE FACTS'));
- assert(review[0].content.includes('DECISIVE SANITY CHECK'));
+ assert(review[0].content.includes('INDIVIDUAL AU LIVES'));
+ assert(review[0].content.includes('CHARACTER EXPRESSION'));
  const empty=F.planMessages(options,ctx,'무협',{previousPlan:old,feedback:'   '});
  assert(empty[2].content.includes('genuinely different overall AU life direction'));
 });
@@ -272,7 +272,7 @@ test('AU planner tests biography-independent social origins instead of repackagi
  const context={text:JSON.stringify({characters:[],players:[{name:'Serena',description:'Accounting major and shy'}],dialogue:[]})};
  const messages=F.planMessages({facet:f,lengthPreset:'normal',language:'한국어'},context,'무협');
  assert.equal(messages.length,2);
- for(const expected of ['WORLD FIRST','CHOOSE A NEW LIFE BEFORE FITTING IT TO SOURCE FACTS','family wealth','family background still fails','DECISIVE SANITY CHECK'])assert(messages[0].content.includes(expected),expected);
+ for(const expected of ['INDEPENDENT WORLD','INDIVIDUAL AU LIVES','minor hobbies','personal secrets','CHARACTER EXPRESSION'])assert(messages[0].content.includes(expected),expected);
  assert(!messages[0].content.includes('"avoid_copying"'));
  assert(messages[1].content.includes('Accounting major'));
  assert(messages[0].content.includes('twin'));
@@ -284,7 +284,7 @@ test('AU world is genre-first and not retrofitted to source personality or popul
  const rows=F.planMessages(options,ctx,'무협 AU');
  assert.equal(rows.length,2);
  const system=rows[0].content;
- for(const term of ['GENRE BEFORE CAST','if the original characters were replaced','WORLD SCOPE AND GENRE ANCHORS','spectator sport','aristocratic hierarchy','real legal institutions','NOT a protagonist-tailored event'])assert(system.includes(term),term);
- assert(system.includes('IF THE USER REQUESTS THEM'));
+ for(const term of ['INDEPENDENT WORLD','without these particular characters','familiar genre conventions','spectacles','RELATIONAL PREMISE','INDIVIDUAL AU LIVES','protagonist-tailored spectacles'])assert(system.includes(term),term);
+ assert(system.includes('Honor explicitly requested unconventional settings'));
  assert(rows[1].content.includes('Accounting major'),'original context path remains unchanged');
 });
