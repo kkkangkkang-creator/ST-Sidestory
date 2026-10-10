@@ -1,7 +1,7 @@
 async function collectLore(options,chat,signal){
+ const overrides=H.parseObject(H.parseObject(chat.metadata).entryStateOverrides);
  return Promise.all(options.loreIds.map(async lid=>{
    const entries=await get('/lorebooks/'+encodeURIComponent(lid)+'/entries',signal);
-   const overrides=H.parseObject(H.parseObject(chat.metadata).entryStateOverrides);
    return {name:lorebooks.find(l=>l.id===lid)?.name||lid,entries:entries
     .filter(e=>options.loreEntries[lid]?options.loreEntries[lid].includes(e.id):(overrides[e.id]?.enabled??H.truth(e.enabled)))
     .map(e=>({name:e.comment||e.name||'',content:e.content}))};
@@ -21,13 +21,16 @@ function showCompletedResult(record,translation,target,signal){
  expanded=record.mode==='visual';
  return true;
 }
-async function collect(options,target,signal,{inspect=false}={}){
+async function collect(options,target,signal,{inspect=false,approvedFacetPlan=false}={}){
  checkTask(target,signal);
  if(!target)throw new Error('현재 열린 채팅에서 다시 시작해 주세요.');
  const chat=await get('/chats/'+encodeURIComponent(target),signal);
  const cid=options.connectionId||chat.connectionId||connections.find(c=>H.truth(c.isDefault))?.id;
  if(!cid)throw new Error('실리태번의 API 연결을 설정해 주세요.');
  const counter=stHost.tokenCounter(cid);
+ // Approved Facet plans already contain everything required for writing or revising.
+ // Do not re-fetch cards, chat messages, personas or lore just to render an approved design.
+ if(approvedFacetPlan){checkTask(target,signal);return {cid,chat,counter};}
  // ST assembles its own context. Avoid loading/tokenizing an unused second copy.
  if(cid==='st-current'&&!inspect&&options.mode!=='facet'){
   const lore=options.loreMode==='selected'?await collectLore(options,chat,signal):null;
@@ -77,9 +80,10 @@ async function generate(action='new'){
  render();
  try{
   if(['facet-replan','facet-approve'].includes(action)&&(!previous||previous.mode!=='facet'||(action==='facet-approve'&&previous.facetPhase!=='plan')))throw new Error('확인할 AU 설계안이 없어요. 설계를 먼저 생성해 주세요.');
-  const bundle=await collect(options,target,signal);
+  const useApprovedFacetPlan=options.mode==='facet'&&!!previous?.facetPlan&&!['new','facet-replan'].includes(action);
+  const bundle=await collect(options,target,signal,{approvedFacetPlan:useApprovedFacetPlan});
   checkTask(target,signal);record.chatName=bundle.chat.name||'';
-  if(options.mode==='facet'){
+  if(options.mode==='facet'&&!useApprovedFacetPlan){
    const selected=SideFacet.clean(options.facet).target,refs=JSON.parse(bundle.ctx.text);
    if(selected!=='user'&&!(refs.characters||[]).length)throw new Error('AU 대상으로 사용할 캐릭터 카드가 없어요. 현재 채팅에서 캐릭터를 확인해 주세요.');
    if(selected!=='character'&&!(refs.players||[]).length)throw new Error('AU 대상으로 사용할 유저 페르소나가 없어요. 현재 채팅에서 페르소나를 선택해 주세요.');
