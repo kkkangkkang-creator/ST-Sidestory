@@ -136,7 +136,7 @@ test('cultural AU naming applies to Japanese, wuxia and original family ties',()
  const planning=F.planMessages(opts,{text:JSON.stringify({characters:[{name:'Slade'}],players:[{name:'Serena'}],dialogue:[]})},'일본 고등학교 AU');
  assert(planning[0].content.includes('Japanese school AU'));
  assert(planning[0].content.includes('潘Slade'));
- assert(planning[0].content.includes('siblings/twins'));
+ assert(planning[0].content.includes('siblings or twins'));
  const blueprint=F.parsePlan(JSON.stringify({world:'현대 일본 고등학교',subjects:[
    {kind:'character',name:'Slade',au_name:'사토 렌 (佐藤 蓮)',name_reason:'일본 고등학교',core_identity:['자신만만함'],au_life:['학생','학생회 대립','동아리'],sheet_layout:['BASICS: Name']},
    {kind:'user',name:'Serena',au_name:'사토 유이 (佐藤 結衣)',name_reason:'쌍둥이 남매',core_identity:['예리함'],au_life:['학생','도서위원','쌍둥이 오빠'],sheet_layout:['BASICS: Name']}
@@ -158,4 +158,20 @@ test('stage-one preview renders culturally adapted names and approval / regenera
  assert(html.includes('facet-plan-approve'));
  assert(html.includes('Tokyo &lt;script&gt;'));
  assert(!html.includes('Tokyo <script>'));
+});
+
+test('Vertex thoughts, fenced JSON and final JSON are parsed without mistaking prefatory braces',()=>{
+ const thought={world:'earlier draft',subjects:[{kind:'character',name:'Slade',au_name:'반슬레이드',core_identity:['rash'],au_life:['old job','old setting','old room'],sheet_layout:['BASICS: Name']}]};
+ const final={world:'낙양의 독립 낭인과 상단',subjects:[{kind:'character',name:'Slade',au_name:'백서혁',core_identity:['자신만만함'],au_life:['강호 탐방','표국 경영','의형제 결성'],sheet_layout:{'## BASICS':'## 인적 사항','## BACKGROUND':'## 내력'}}]};
+ const fence=String.fromCharCode(96).repeat(3);
+ const combined='**AU Adaptation Plan**\n\n'+fence+'json\n'+JSON.stringify(thought)+'\n'+fence+'\n\n'+JSON.stringify(final)+'\n';
+ const parsed=F.parsePlan(combined,'character');
+ assert.equal(parsed.world,final.world);
+ assert.equal(parsed.subjects[0].au_name,'백서혁');
+ assert.deepEqual(parsed.subjects[0].sheet_layout,['## BASICS → ## 인적 사항','## BACKGROUND → ## 내력']);
+});
+test('incomplete model JSON gives an actionable failure instead of silent acceptance',()=>{
+ const valid=JSON.stringify({world:'무협',subjects:[{kind:'character',name:'Slade',au_name:'백서혁',core_identity:['bold'],au_life:['traveler','student','swordsman'],sheet_layout:['BASICS']}]});
+ assert.throws(()=>F.parsePlan(valid.slice(0,-20),'character'),/중간에 잘렸어요/);
+ assert.throws(()=>F.parsePlan('I cannot output JSON','character'),/JSON/);
 });

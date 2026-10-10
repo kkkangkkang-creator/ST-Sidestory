@@ -98,9 +98,13 @@ async function generate(action='new'){
     const planFit=await fitTokenBudget(planRows,options.inputMaxTokens,bundle.counter);
     if(planFit.tokens>options.inputMaxTokens)throw new Error('AU 설계 참고 자료가 입력 한도를 넘어요. 참고 범위나 고정 자료를 줄여 주세요.');
     planningInput=planFit.tokens;checkTask(target,signal);
-    planText=await sendGeneration({connectionId:bundle.cid,messages:planFit.messages,parameters:{maxTokens:Math.max(2500,Math.min(8000,options.maxTokens))},streaming:false,runId:runId+'-au-plan',useSillyTavernContext:false},options,'다면 · AU 설계',()=>{},bundle.counter);
+    // Thinking counts toward output caps; a small safety margin prevents truncation.
+    // The plan prompt requests concise JSON, and failures NEVER trigger a billable automatic retry.
+    const planMaxTokens=8500;
+    planText=await sendGeneration({connectionId:bundle.cid,messages:planFit.messages,parameters:{maxTokens:planMaxTokens},streaming:false,runId:runId+'-au-plan',useSillyTavernContext:false},options,'다면 · AU 설계',()=>{},bundle.counter);
     checkTask(target,signal);
-    plan=SideFacet.parsePlan(planText,facet.target);
+    try{plan=SideFacet.parsePlan(planText,facet.target);}
+    catch(error){throw new Error(error.message+' 자동 재호출은 비용 때문에 하지 않았어요. 필요할 때 직접 다시 생성해 주세요.');}
    }
    record.facetPlan=plan;
    if(action==='new'||action==='facet-replan'){
