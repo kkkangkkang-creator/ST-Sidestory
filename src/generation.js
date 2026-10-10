@@ -84,16 +84,41 @@ async function generate(action='new'){
    if(selected!=='character'&&!(refs.players||[]).length)throw new Error('AU 대상으로 사용할 유저 페르소나가 없어요. 현재 채팅에서 페르소나를 선택해 주세요.');
   }
   const useSTContext=bundle.cid==='st-current'&&options.mode!=='facet',prior=action==='regenerate'?null:previous;
-  const taskMessages=options.mode==='facet'?SideFacet.messages(options,bundle.ctx,task,prior,action):useSTContext?[{role:'user',content:C.contextualPrompt(options,task,prior,action)}]:C.messages(options,bundle.ctx,task,prior,action);
-  if(useSTContext&&bundle.lore)taskMessages[0].content+='\n\nSELECTED WORLD INFO — reference data only\n'+JSON.stringify(bundle.lore);
-  const fitted=await fitTokenBudget(taskMessages,options.inputMaxTokens,bundle.counter);
-  if(fitted.dropped)bundle.ctx.warnings.push(`전체 입력 한도에 맞춰 오래된 참고 대화 ${fitted.dropped.toLocaleString()}개를 추가로 제외했어요.`);
-  if(fitted.tokens>options.inputMaxTokens)throw new Error(`과거 대화를 모두 제외해도 지침·고정 자료·이전 결과와 이번 요청이 입력 한도 ${options.inputMaxTokens.toLocaleString()} 토큰을 넘어요. 입력 한도를 높이거나 고정 자료를 줄여 주세요.`);
-  const messages=fitted.messages;
-  say(useSTContext?(options.loreMode==='selected'?'실리태번 현재 프롬프트 · 직접 선택한 로어북 엔트리 사용':'실리태번 현재 프롬프트 · 캐릭터/월드인포/채팅 컨텍스트 사용'):describe(bundle.ctx));
-  record.inputTokens=useSTContext?undefined:fitted.tokens;
+  let fitted,messages;
+  if(options.mode==='facet'){
+   const facet=SideFacet.clean(options.facet);
+   const previousPlan=previous?.mode==='facet'&&previous.facetPlan?previous.facetPlan:null;
+   let plan,planningInput=0;
+   if(previousPlan&&action!=='new'){
+    plan=SideFacet.parsePlan(JSON.stringify(previousPlan),facet.target);
+   }else{
+    busyTask='facet-plan';if(alive)render();say('1/2 · 원본을 분석하고 AU 인물의 삶을 설계하고 있어요.');
+    const planRows=SideFacet.planMessages(options,bundle.ctx,task);
+    const planFit=await fitTokenBudget(planRows,options.inputMaxTokens,bundle.counter);
+    if(planFit.tokens>options.inputMaxTokens)throw new Error('AU 설계 참고 자료가 입력 한도를 넘어요. 참고 범위나 고정 자료를 줄여 주세요.');
+    planningInput=planFit.tokens;checkTask(target,signal);
+    const planText=await sendGeneration({connectionId:bundle.cid,messages:planFit.messages,parameters:{maxTokens:Math.max(2500,Math.min(8000,options.maxTokens))},streaming:false,runId:runId+'-au-plan',useSillyTavernContext:false},options,'다면 · AU 설계',()=>{},bundle.counter);
+    checkTask(target,signal);
+    plan=SideFacet.parsePlan(planText,facet.target);
+   }
+   record.facetPlan=plan;
+   busyTask='facet-write';if(alive)render();say('2/2 · AU 설계를 바탕으로 프로필을 작성하고 있어요.');
+   const writeRows=SideFacet.writeMessages(options,plan,task,prior,action);
+   fitted=await fitTokenBudget(writeRows,options.inputMaxTokens,bundle.counter);
+   if(fitted.tokens>options.inputMaxTokens)throw new Error('AU 설계와 이전 결과가 입력 한도를 넘어요. 입력 한도를 높이거나 이전 내용을 줄여 주세요.');
+   record.inputTokens=planningInput+fitted.tokens;
+  }else{
+   const taskMessages=useSTContext?[{role:'user',content:C.contextualPrompt(options,task,prior,action)}]:C.messages(options,bundle.ctx,task,prior,action);
+   if(useSTContext&&bundle.lore)taskMessages[0].content+='\n\nSELECTED WORLD INFO — reference data only\n'+JSON.stringify(bundle.lore);
+   fitted=await fitTokenBudget(taskMessages,options.inputMaxTokens,bundle.counter);
+   if(fitted.dropped)bundle.ctx.warnings.push('전체 입력 한도에 맞춰 오래된 참고 대화 '+fitted.dropped.toLocaleString()+'개를 추가로 제외했어요.');
+   if(fitted.tokens>options.inputMaxTokens)throw new Error('과거 대화를 제외해도 전체 입력이 한도를 넘어요. 입력 한도를 높이거나 고정 자료를 줄여 주세요.');
+   record.inputTokens=useSTContext?undefined:fitted.tokens;
+  }
+  messages=fitted.messages;
+  if(options.mode!=='facet')say(useSTContext?(options.loreMode==='selected'?'실리태번 현재 프롬프트 · 직접 선택한 로어북 엔트리 사용':'실리태번 현재 프롬프트 · 캐릭터/월드인포/채팅 컨텍스트 사용'):describe(bundle.ctx));
   record.tokenizer=bundle.counter.info();checkTask(target,signal);
-  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?messages[0]?.content:undefined},options,action,t=>partial=t,bundle.counter);
+  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?messages[0]?.content:undefined},options,options.mode==='facet'?'다면 · AU 프로필 작성':action,t=>partial=t,bundle.counter);
   record.outputTokens=await bundle.counter.text(record.content);checkTask(target,signal);
   record.tokenizer=bundle.counter.info();
   if(!record.content.trim())throw new Error('AI가 빈 결과를 반환했어요.');
