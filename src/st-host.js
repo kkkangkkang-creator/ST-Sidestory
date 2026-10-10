@@ -113,6 +113,14 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         if(match)return entries(decodeURIComponent(match[1]),signal);
         throw new Error('실리태번 이식판에서 지원하지 않는 요청: '+route);
     }
+    async function createCharacterFromProfile({name,description}) {
+        if(!String(name||'').trim()||!String(description||'').trim())throw new Error('캐릭터 이름과 프로필이 필요해요.');
+        const c=get(),response=await fetcher('/api/characters/create',{method:'POST',headers:c.getRequestHeaders(),body:JSON.stringify({ch_name:String(name).slice(0,120),description:String(description),personality:'',scenario:'',first_mes:'',mes_example:''})});
+        if(!response.ok)throw new Error('새 캐릭터 저장 실패: '+response.status);
+        const avatar=await response.text();
+        try{await c.getCharacters?.();}catch{}
+        return avatar;
+    }
     async function createChatFromRecord(record) {
         const c=get(),origin=currentChatId();
         if(running||(typeof state.isGenerating==='function'&&state.isGenerating())||c.isSendPress||(typeof c.isGenerating==='function'?c.isGenerating():c.isGenerating))throw new Error('생성이 끝난 뒤 새 채팅을 만들어 주세요.');
@@ -176,7 +184,7 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         } finally {signal?.removeEventListener('abort',handler);}
     }
     return {
-        request,generate,createChatFromRecord,currentChatId,currentChat,linked,currentPersona,tokenCounter,connections,
+        request,generate,createChatFromRecord,createCharacterFromProfile,currentChatId,currentChat,linked,currentPersona,tokenCounter,connections,
         storage:{async get(){return {sideStory:get().extensionSettings?.st_sidestory||{}};},async patch(value){const c=get();if(!c.extensionSettings||typeof c.saveSettingsDebounced!=='function')throw new Error('실리태번 설정 저장 API를 찾지 못했어요.');c.extensionSettings.st_sidestory=structuredClone(value.sideStory);c.saveSettingsDebounced();}},
         setTimeout:globalThis.setTimeout.bind(globalThis),clearTimeout:globalThis.clearTimeout.bind(globalThis),
         onCleanup(fn){cleanups.push(fn);},cleanup(){for(const fn of cleanups.splice(0))fn();}

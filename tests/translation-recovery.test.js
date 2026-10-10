@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const read=f=>fs.readFileSync(new URL('../src/'+f,import.meta.url),'utf8');
 const X=new Function(read('extras.js')+';return SideExtras;')();
-const C=new Function(read('replacement.js')+read('core.js')+';return SideCore;')();
+const C=new Function(read('replacement.js')+read('facet.js')+read('core.js')+';return SideCore;')();
 test('stray text outside a JSON string fails explicitly, while escaped TeX is preserved',()=>{
  const items=[{id:76,text:'source'}];
  assert.throws(()=>X.parseTranslation('{"items":[{"id":76,"text":"맥박:*"自我"}]}',items),/JSON 형식 오류/);
