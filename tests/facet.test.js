@@ -277,3 +277,14 @@ test('AU planner tests biography-independent social origins instead of repackagi
  assert(messages[1].content.includes('Accounting major'));
  assert(messages[0].content.includes('twin'));
 });
+
+test('AU world is genre-first and not retrofitted to source personality or popularity',()=>{
+ const options={facet:F.clean({...F.defaults,target:'both',au:'무협 AU'}),lengthPreset:'normal',language:'한국어'};
+ const ctx={text:JSON.stringify({characters:[{name:'Slade',personality:'Competitive, wants attention'}],players:[{name:'Serena',description:'Accounting major'}],dialogue:[]})};
+ const rows=F.planMessages(options,ctx,'무협 AU');
+ assert.equal(rows.length,2);
+ const system=rows[0].content;
+ for(const term of ['GENRE BEFORE CAST','if the original characters were replaced','WORLD SCOPE AND GENRE ANCHORS','spectator sport','aristocratic hierarchy','real legal institutions','NOT a protagonist-tailored event'])assert(system.includes(term),term);
+ assert(system.includes('IF THE USER REQUESTS THEM'));
+ assert(rows[1].content.includes('Accounting major'),'original context path remains unchanged');
+});
