@@ -94,7 +94,8 @@ async function generate(action='new'){
     plan=SideFacet.parsePlan(JSON.stringify(previousPlan),facet.target);
    }else{
     busyTask='facet-plan';if(alive)render();say('1/2 · 원본을 분석하고 AU 인물의 삶을 설계하고 있어요.');
-    const planRows=SideFacet.planMessages(options,bundle.ctx,task);
+    const review=action==='facet-replan'?{previousPlan,feedback:String(previous?.facetReviewDraft||'').trim().slice(0,2000)}:undefined;
+    const planRows=SideFacet.planMessages(options,bundle.ctx,task,review);
     const planFit=await fitTokenBudget(planRows,options.inputMaxTokens,bundle.counter);
     if(planFit.tokens>options.inputMaxTokens)throw new Error('AU 설계 참고 자료가 입력 한도를 넘어요. 참고 범위나 고정 자료를 줄여 주세요.');
     planningInput=planFit.tokens;checkTask(target,signal);
@@ -108,7 +109,7 @@ async function generate(action='new'){
    }
    record.facetPlan=plan;
    if(action==='new'||action==='facet-replan'){
-    record.facetPhase='plan';record.content='';record.status='complete';record.title=('AU 설계 · '+task).slice(0,180);
+    record.facetPhase='plan';record.content='';record.status='complete';record.facetReviewDraft='';record.title=('AU 설계 · '+task).slice(0,180);
     record.outputTokens=await bundle.counter.text(planText);
     record.inputTokens=planningInput;record.tokenizer=bundle.counter.info();checkTask(target,signal);
     await saveGenerated(record,previous);

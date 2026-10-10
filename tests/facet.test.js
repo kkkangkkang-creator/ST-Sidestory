@@ -19,8 +19,8 @@ test('six degree and relationship macro instructions remain independent and gene
   assert(value.length>200,key);
   assert(!/[가-힣]/.test(value),key+' must be English');
  }
- assert(f.phrases.preserve.includes('broad themes'));
- assert(f.phrases.rebuild.includes('different life'));
+ assert(f.phrases.preserve.includes('psychological continuity'));
+ assert(f.phrases.rebuild.includes('substantially different upbringing'));
  assert(f.phrases.relationOn.includes('selected relationship option'));
  assert(f.phrases.relationOff.includes('Do not create'));
  assert(f.phrases.originalOn.includes('family ties'));
@@ -92,7 +92,7 @@ test('both AU degrees retain character without preserving a copied biography or 
  assert(!expanded.includes('{{변경정도}}'));
  const anchored=F.expand(F.clean({...F.defaults,degree:'preserve'}),{char:'Character',user:'Persona'});
  assert(anchored.includes('SOURCE-GROUNDED RECONSTRUCTION'));
- assert(anchored.includes('not a renamed biography'));
+ assert(anchored.includes('not retaining the same job'));
 });
 test('previously saved editor prompt and degree phrases reset exactly once on upgrade',()=>{
  const old=F.clean({target:'user',degree:'rebuild',relation:'new',au:'Guide AU',cautions:'No role swapping',
@@ -214,4 +214,54 @@ test('planning and writing stages share concise AU principles without exposing t
  assert(!rows[1].content.includes('avoid_copying'));
  assert(planRequest[0].content.length<13000);
  assert(rows[0].content.length<12000);
+});
+test('AU reconstruction degree changes psychological continuity, never requiring the old life path',()=>{
+ const a=F.clean({...F.defaults,target:'both',degree:'preserve',relation:'original',au:'무협'});
+ const b=F.clean({...F.defaults,target:'both',degree:'rebuild',relation:'original',au:'무협'});
+ for(const cfg of [a,b]){
+  const prompt=F.expand(cfg,{char:'Slade',user:'Serena'});
+  assert(prompt.includes('freely permit new family circumstances'));
+  assert(prompt.includes('HOW they think, feel, choose, and relate'));
+  assert(prompt.includes('verified family ties'));
+  assert(prompt.includes('AU')||prompt.includes('무협'));
+ }
+ assert(a.phrases.preserve.includes('psychological'));
+ assert(a.phrases.preserve.includes('not retaining the same job'));
+ assert(b.phrases.rebuild.includes('substantially different upbringing'));
+ assert(b.phrases.rebuild.includes('outward expression'));
+});
+test('AU plan regeneration incorporates optional user feedback and rethinks prior life, with no new API stage',()=>{
+ const facet=F.clean({...F.defaults,au:'무협',target:'both',relation:'original',degree:'preserve'});
+ const options={facet,lengthPreset:'normal',language:'한국어'};
+ const ctx={text:JSON.stringify({characters:[{name:'Slade',description:'Original history'}],players:[{name:'Serena',description:'Original profile'}],dialogue:[]})};
+ const first=F.planMessages(options,ctx,'무협');
+ assert.equal(first.length,2);
+ const old={world:'낙양',subjects:[{kind:'character',au_name:'백서혁',au_life:['낭인 출신']},{kind:'user',au_name:'백서령',au_life:['상단 재정 관리자','상인 가족의 딸']}],relationship:'쌍둥이'};
+ const review=F.planMessages(options,ctx,'무협',{previousPlan:old,feedback:'이름과 쌍둥이 관계는 유지하되 세레나의 사회적 위치와 성장 배경은 새로 설계해줘'});
+ assert.equal(review.length,3);
+ assert(review[2].content.includes('이름과 쌍둥이 관계는 유지'));
+ assert(review[2].content.includes('상단 재정 관리자'));
+ assert(review[2].content.includes('not required to preserve'));
+ assert(review[0].content.includes('beginning with their origin'));
+ assert(review[0].content.includes('INDEPENDENT AU-born life'));
+ const empty=F.planMessages(options,ctx,'무협',{previousPlan:old,feedback:'   '});
+ assert(empty[2].content.includes('genuinely different overall AU life direction'));
+});
+test('updated default prompts migrate v6 without destroying custom prompt edits',()=>{
+ const legacy={promptRevision:6,prompt:'{{설정된AU}} - KEEP MY CUSTOM PROMPT',phrases:{rebuild:'MY PERSONAL REBUILD RULES'}};
+ const f=F.clean(legacy);
+ assert.equal(f.prompt,legacy.prompt);
+ assert.equal(f.phrases.rebuild,legacy.phrases.rebuild);
+ assert.equal(F.clean({promptRevision:6,prompt:''}).prompt,F.defaults.prompt);
+ assert.equal(F.clean({prompt:'SOME UNVERSIONED PROMPT'}).prompt,F.defaults.prompt);
+});
+test('feedback input appears in compact AU review and escapes untrusted content',()=>{
+ const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const preview=new Function('E','smallIcon',read('facet.js')+';return facetPlanPreview;')(escape,()=>'<svg></svg>');
+ const p=F.parsePlan(JSON.stringify({world:'중원',subjects:[{kind:'character',name:'Slade',au_name:'백서혁',core_identity:['경쟁심'],au_life:['가문의 장남','협객','독립적인 삶'],sheet_layout:['BASICS']}]}),'character');
+ const html=preview({facetPhase:'plan',facetPlan:p,facetReviewDraft:'쌍둥이 유지 <script>alert(1)</script>'});
+ assert(html.includes('facet-plan-feedback'));
+ assert(html.includes('쌍둥이 유지 &lt;script&gt;'));
+ assert(!html.includes('쌍둥이 유지 <script>'));
+ assert(html.includes('facet-plan-regenerate'));
 });
