@@ -95,8 +95,8 @@ test('two-stage AU planning passes original references only to stage one',()=>{
   const planning=F.planMessages(options,context,'romance fantasy');
   assert(planning[1].content.includes('OLD_SNIPER_123'));
   const json={world:'Romance fantasy city with guilds and salons',subjects:[
-   {kind:'character',name:'Slade',core_identity:['competitive','witty'],au_life:['travelling scholar','diplomat','provincial childhood'],sheet_layout:['BASICS: Name, Occupation'],relationships:['trusted person']},
-   {kind:'user',name:'Serena',core_identity:['reserved','perceptive'],au_life:['small merchant family','naturalist','independent researcher'],sheet_layout:['BASICS: Name, Occupation'],relationships:['trusted person']}
+   {kind:'character',name:'Slade',au_name:'에드리안 발렌',core_identity:['competitive','witty'],au_life:['travelling scholar','diplomat','provincial childhood'],sheet_layout:['BASICS: Name, Occupation'],relationships:['trusted person']},
+   {kind:'user',name:'Serena',au_name:'세레나 에르만',core_identity:['reserved','perceptive'],au_life:['small merchant family','naturalist','independent researcher'],sheet_layout:['BASICS: Name, Occupation'],relationships:['trusted person']}
   ],relationship:'trusted friends',genre_checks:['no modern broadcasts']};
   const plan=F.parsePlan(JSON.stringify(json),'both');
   const writer=F.writeMessages(options,plan,'romance fantasy',null,'new');
@@ -109,7 +109,7 @@ test('two-stage AU planning passes original references only to stage one',()=>{
 });
 test('validated AU blueprint reuse and revisions omit unwanted prior input',()=>{
  const options={facet:F.clean({...F.defaults,target:'character',degree:'rebuild',au:'Hunter'}),lengthPreset:'normal',language:'한국어'};
- const plan=F.parsePlan(JSON.stringify({world:'Hunter world',subjects:[{kind:'character',name:'A',core_identity:['bold'],au_life:['scholar','wanderer','guild negotiator'],sheet_layout:['BASICS: Occupation']}]}),'character');
+ const plan=F.parsePlan(JSON.stringify({world:'Hunter world',subjects:[{kind:'character',name:'A',au_name:'AU A',core_identity:['bold'],au_life:['scholar','wanderer','guild negotiator'],sheet_layout:['BASICS: Occupation']}]}),'character');
  const prev={content:'PREVIOUS_PROFILE'};
  const revised=F.writeMessages(options,plan,'Change occupation',prev,'revise');
  assert.equal(revised.length,4);assert(revised[2].content.includes('PREVIOUS_PROFILE'));
@@ -121,10 +121,41 @@ test('validated AU blueprint reuse and revisions omit unwanted prior input',()=>
 });
 
 test('saved AU designs survive backup import and are reusable',()=>{
- const plan=F.parsePlan(JSON.stringify({world:'Fantasy scholarly city',subjects:[{kind:'character',name:'A',core_identity:['witty'],au_life:['book publisher','traveler','academy mentor'],sheet_layout:['BASICS: Occupation']}],relationship:'none'}),'character');
- const record={id:'r1',mode:'facet',title:'AU',content:'PROFILE',request:'Academy AU',chatId:'c',createdAt:Date.now(),settings:C.settings({mode:'facet',facet:{target:'character'}}),facetPlan:plan};
+ const plan=F.parsePlan(JSON.stringify({world:'Fantasy scholarly city',subjects:[{kind:'character',name:'A',au_name:'AU A',core_identity:['witty'],au_life:['book publisher','traveler','academy mentor'],sheet_layout:['BASICS: Occupation']}],relationship:'none'}),'character');
+ const record={id:'r1',mode:'facet',facetPhase:'plan',title:'AU',content:'',request:'Academy AU',chatId:'c',createdAt:Date.now(),settings:C.settings({mode:'facet',facet:{target:'character'}}),facetPlan:plan};
  const [loaded]=C.backup({kind:'st-sidestory-backup',version:2,records:[record]});
  assert.deepEqual(loaded.facetPlan,plan);
+ assert.equal(loaded.facetPhase,'plan');
  const rows=F.writeMessages({facet:loaded.settings.facet,language:'한국어',lengthPreset:'normal'},loaded.facetPlan,'Academy AU',null,'regenerate');
  assert(rows[1].content.includes('academy mentor'));
+});
+
+test('cultural AU naming applies to Japanese, wuxia and original family ties',()=>{
+ const f=F.clean({...F.defaults,target:'both',relation:'original',au:'일본 고등학교 AU'});
+ const opts={facet:f,lengthPreset:'normal',language:'한국어'};
+ const planning=F.planMessages(opts,{text:JSON.stringify({characters:[{name:'Slade'}],players:[{name:'Serena'}],dialogue:[]})},'일본 고등학교 AU');
+ assert(planning[0].content.includes('Japanese school AU'));
+ assert(planning[0].content.includes('潘Slade'));
+ assert(planning[0].content.includes('siblings/twins'));
+ const blueprint=F.parsePlan(JSON.stringify({world:'현대 일본 고등학교',subjects:[
+   {kind:'character',name:'Slade',au_name:'사토 렌 (佐藤 蓮)',name_reason:'일본 고등학교',core_identity:['자신만만함'],au_life:['학생','학생회 대립','동아리'],sheet_layout:['BASICS: Name']},
+   {kind:'user',name:'Serena',au_name:'사토 유이 (佐藤 結衣)',name_reason:'쌍둥이 남매',core_identity:['예리함'],au_life:['학생','도서위원','쌍둥이 오빠'],sheet_layout:['BASICS: Name']}
+ ]}), 'both');
+ const writer=F.writeMessages(opts,blueprint,'일본 고등학교 AU',null,'new');
+ assert(writer[0].content.includes('사토 렌'));
+ assert(writer[1].content.includes('사토 유이'));
+ assert(!writer[1].content.includes('OLD_SNIPER_123'));
+ assert.throws(()=>F.parsePlan(JSON.stringify({world:'Wuxia',subjects:[{kind:'character',name:'Slade',core_identity:['brash'],au_life:['merchant','academy','traveler'],sheet_layout:['BASICS: Name']}]}),'character'),/부족/);
+});
+
+test('stage-one preview renders culturally adapted names and approval / regenerate controls safely',()=>{
+ const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const preview=new Function('E','smallIcon',read('facet.js')+';return facetPlanPreview;')(escape,()=>'<svg></svg>');
+ const plan=F.parsePlan(JSON.stringify({world:'Tokyo <script>alert(1)</script>',subjects:[{kind:'character',name:'Slade Vance',au_name:'사토 렌 (佐藤 蓮)',name_reason:'일본 학생 이름',core_identity:['재치 있음'],au_life:['학생','친구들과의 경쟁','방과후 동아리'],sheet_layout:['BASICS: Name']}]}),'character');
+ const html=preview({facetPhase:'plan',facetPlan:plan});
+ assert(html.includes('사토 렌 (佐藤 蓮)'));
+ assert(html.includes('facet-plan-regenerate'));
+ assert(html.includes('facet-plan-approve'));
+ assert(html.includes('Tokyo &lt;script&gt;'));
+ assert(!html.includes('Tokyo <script>'));
 });

@@ -57,7 +57,7 @@ async function generate(action='new'){
  if(previous?.mode==='facet')options.facet=SideFacet.clean(previous.settings?.facet);
  if(options.mode==='facet'&&!options.facet.prompt.trim()){say('다면 프롬프트를 먼저 작성해 주세요.');return;}
  delete options.summaryByChat;
- const task=action==='new'?(options.mode==='facet'?options.facet.au.trim():s.request.trim()):action==='regenerate'?previous.request:
+ const task=action==='new'?(options.mode==='facet'?options.facet.au.trim():s.request.trim()):['regenerate','facet-replan','facet-approve'].includes(action)?previous.request:
   $('followup')?.value.trim()||(action==='continue'?'앞의 결과를 바탕으로 다음 내용을 이어서 작성해줘.':'요청한 내용을 유지하면서 완전한 결과로 다시 만들어줘.');
  if(!task){say('보고 싶은 내용을 한 줄 적어 주세요.');$('request')?.focus();return;}
  if(previous&&previous.chatId!==target){say('다른 채팅에서 만든 결과는 이 채팅에서 이어 쓸 수 없어요.',true);return;}
@@ -66,16 +66,17 @@ async function generate(action='new'){
  referencesOpen=false;busy=true;busyTask='generation';editing=false;page='create';mobilePane='result';
  controller=new AbortController();const signal=controller.signal;runId=H.uuid();let partial='';
  const record={
-  id:H.uuid(),mode:options.mode,
-  title:action==='continue'?task.slice(0,160):(action==='revise'?'수정본 · ':'')+(previous?.title||task).slice(0,160),
-  action,seriesId:previous?.seriesId||(action==='continue'?'series-'+H.uuid():null),seriesTitle:previous?.seriesTitle||(action==='continue'?previous.title:null),
+  id:action==='facet-replan'?previous.id:H.uuid(),mode:options.mode,
+  title:action==='continue'?task.slice(0,160):(action==='revise'?'수정본 · ':'')+(action==='facet-approve'?task:previous?.title||task).slice(0,160),
+  action:action==='facet-replan'?'regenerate':action==='facet-approve'?'new':action,seriesId:previous?.seriesId||(action==='continue'?'series-'+H.uuid():null),seriesTitle:previous?.seriesTitle||(action==='continue'?previous.title:null),
   request:previous?.request||task,chatId:target,chatName:previous?.chatName||'',
   characterIds:[...(s.characterIds||[])],characterNames:(s.characterIds||[]).map(id=>characters.find(c=>c.id===id)?.name||id),
   content:'',status:'partial',createdAt:Date.now(),favorite:false,settings:C.recordSettings(options),
-  parentId:previous?.id||null,folderId:previous?.folderId||null,tags:C.cleanTags(previous?.tags)
+  parentId:action==='facet-replan'?previous?.parentId||null:previous?.id||null,folderId:previous?.folderId||null,tags:C.cleanTags(previous?.tags)
  };
  render();
  try{
+  if(['facet-replan','facet-approve'].includes(action)&&(!previous||previous.mode!=='facet'||(action==='facet-approve'&&previous.facetPhase!=='plan')))throw new Error('확인할 AU 설계안이 없어요. 설계를 먼저 생성해 주세요.');
   const bundle=await collect(options,target,signal);
   checkTask(target,signal);record.chatName=bundle.chat.name||'';
   if(options.mode==='facet'){
@@ -88,8 +89,8 @@ async function generate(action='new'){
   if(options.mode==='facet'){
    const facet=SideFacet.clean(options.facet);
    const previousPlan=previous?.mode==='facet'&&previous.facetPlan?previous.facetPlan:null;
-   let plan,planningInput=0;
-   if(previousPlan&&action!=='new'){
+   let plan,planningInput=0,planText='';
+   if(previousPlan&&action!=='new'&&action!=='facet-replan'){
     plan=SideFacet.parsePlan(JSON.stringify(previousPlan),facet.target);
    }else{
     busyTask='facet-plan';if(alive)render();say('1/2 · 원본을 분석하고 AU 인물의 삶을 설계하고 있어요.');
@@ -97,11 +98,20 @@ async function generate(action='new'){
     const planFit=await fitTokenBudget(planRows,options.inputMaxTokens,bundle.counter);
     if(planFit.tokens>options.inputMaxTokens)throw new Error('AU 설계 참고 자료가 입력 한도를 넘어요. 참고 범위나 고정 자료를 줄여 주세요.');
     planningInput=planFit.tokens;checkTask(target,signal);
-    const planText=await sendGeneration({connectionId:bundle.cid,messages:planFit.messages,parameters:{maxTokens:Math.max(2500,Math.min(8000,options.maxTokens))},streaming:false,runId:runId+'-au-plan',useSillyTavernContext:false},options,'다면 · AU 설계',()=>{},bundle.counter);
+    planText=await sendGeneration({connectionId:bundle.cid,messages:planFit.messages,parameters:{maxTokens:Math.max(2500,Math.min(8000,options.maxTokens))},streaming:false,runId:runId+'-au-plan',useSillyTavernContext:false},options,'다면 · AU 설계',()=>{},bundle.counter);
     checkTask(target,signal);
     plan=SideFacet.parsePlan(planText,facet.target);
    }
    record.facetPlan=plan;
+   if(action==='new'||action==='facet-replan'){
+    record.facetPhase='plan';record.content='';record.status='complete';record.title=('AU 설계 · '+task).slice(0,180);
+    record.outputTokens=await bundle.counter.text(planText);
+    record.inputTokens=planningInput;record.tokenizer=bundle.counter.info();checkTask(target,signal);
+    await saveGenerated(record,previous);
+    if(showCompletedResult(record,false,target,signal))say('AU 설계안이 준비됐어요. 내용을 보고 승인하거나 다시 생성해 주세요.');
+    return;
+   }
+   record.facetPhase='written';
    busyTask='facet-write';if(alive)render();say('2/2 · AU 설계를 바탕으로 프로필을 작성하고 있어요.');
    const writeRows=SideFacet.writeMessages(options,plan,task,prior,action);
    fitted=await fitTokenBudget(writeRows,options.inputMaxTokens,bundle.counter);
