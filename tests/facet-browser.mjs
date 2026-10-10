@@ -37,7 +37,7 @@ try {
  await page.addInitScript(()=>{
   window.createdPersonas=[];window.generatedArgs=[];
   window.fixture={chatId:'Test chat',characterId:0,groupId:null,characters:[{avatar:'a.png',name:'A',data:{name:'A',description:'A quiet character',extensions:{world:'Book'}}}],chat:[{mes:'Let us meet at the cafe',name:'A',is_user:false}],chatMetadata:{},powerUserSettings:{personas:{'user.png':'User'},persona_descriptions:{'user.png':{description:'A friend'}}},name1:'User',mainApi:'openai',extensionSettings:{},saveSettingsDebounced(){},getRequestHeaders:({omitContentType}={})=>omitContentType?{}:({'Content-Type':'application/json'}),getTokenCountAsync:async text=>Math.ceil(text.length/3),getCurrentChatId(){return this.chatId;},generateRaw:async function(args){window.lastArgs=args;window.generatedArgs.push(args);
-    if(args.prompt?.[0]?.content.includes('# STAGE 1 — AU DESIGN ONLY')){
+    if(args.prompt?.[0]?.content.includes('# STAGE 1 — DESIGN AN AU LIFE')){
       const task=JSON.parse(args.prompt[1].content.split('CURRENT TASK\n')[1]);
       const kinds=task.target==='both'?['character','user']:[task.target];
       return JSON.stringify({world:'A coherent alternate fantasy world',subjects:kinds.map(kind=>({kind,name:kind==='character'?'A':'User',au_name:kind==='character'?'사토 렌':'사토 유이',name_reason:'Japanese school name',core_identity:['distinct personality'],au_life:['a real local profession','a genre-fitting upbringing','independent formative events'],sheet_layout:['BASICS: Name, Ability'],relationships:[],avoid_copying:['old setting']})),relationship:'none',genre_checks:['no anachronisms']});
@@ -59,14 +59,34 @@ try {
  await page.locator('[data-facet-choice="relation"][data-value="original"]').click();assert.equal(await page.locator('[data-facet-choice="relation"][aria-pressed="true"]').getAttribute('data-value'),'original');
  await page.locator('[data-facet-choice="relation"][data-value="none"]').click();assert.equal(await page.locator('[data-facet-choice="relation"][aria-pressed="true"]').getAttribute('data-value'),'none');assert.equal(await page.locator('[data-setting="lengthPreset"]').count(),1);
  await page.evaluate(()=>window.nextResult='Name: A\nAbility: Sentinel');await page.locator('#generate').click();await page.locator('#facet-plan-approve').waitFor();assert(await page.locator('.facet-plan-preview').getByText('사토 렌',{exact:false}).count());
+ // Opening an archived stage-one design must still allow switching to the composer.
+ await page.locator('.top-actions [data-page="archive"]').click();
+ await page.locator('.card-open').first().click();
+ await page.locator('#facet-plan-regenerate').waitFor();
  await page.setViewportSize({width:390,height:780});
+ await page.locator('[data-pane="compose"]').click();
+ assert(await page.locator('.composer').isVisible(),'archive-opened plan should show composer on mobile');
+ assert(!await page.locator('.reader.facet-plan-reader').isVisible(),'archive-opened plan must hide the reader on composer tab');
+ assert(await page.locator('[data-facet="au"]').isVisible(),'AU composer inputs should be visible');
+ await page.locator('[data-pane="result"]').click();
+ assert(await page.locator('#facet-plan-regenerate').isVisible(),'result tab restores archived plan');
  const scrollBox=page.locator('.facet-plan-scroll');
  await scrollBox.evaluate(el=>{el.querySelector('.facet-plan-world p').textContent+=' 긴 설계 내용이 이어집니다.'.repeat(500);el.scrollTop=el.scrollHeight;});
  const scrollState=await scrollBox.evaluate(el=>({scrollTop:el.scrollTop,scrollHeight:el.scrollHeight,clientHeight:el.clientHeight}));
  assert(scrollState.scrollTop>0&&scrollState.scrollHeight>scrollState.clientHeight,'AU plan should scroll on mobile');
  assert(await page.locator('#facet-plan-approve').isVisible(),'approval remains reachable outside scrolling content');
  await page.setViewportSize({width:1280,height:850});
- assert.equal(await page.evaluate(()=>window.generatedArgs.length),1);await page.locator('#facet-plan-feedback').fill('이름과 쌍둥이 관계만 유지하고 성장 배경은 새롭게');await page.locator('#facet-plan-regenerate').click();await page.locator('#facet-plan-approve').waitFor();assert.equal(await page.evaluate(()=>window.generatedArgs.length),2);const feedbackSent=await page.evaluate(()=>window.generatedArgs[1].prompt.some(row=>row.content.includes('이름과 쌍둥이 관계만 유지하고 성장 배경은 새롭게')));assert(feedbackSent,'User review feedback must reach stage-one replan request');await page.locator('#facet-plan-approve').click();await page.frameLocator('#result iframe').getByText('Ability: Sentinel',{exact:false}).waitFor();
+ assert.equal(await page.evaluate(()=>window.generatedArgs.length),1);
+ assert.equal(await page.locator('#facet-plan-feedback').count(),0,'long plan should not include feedback at bottom');
+ await page.locator('#facet-plan-regenerate').click();
+ await page.locator('#side-dialog-textarea').waitFor();
+ assert.equal(await page.evaluate(()=>window.generatedArgs.length),1,'opening the feedback dialog must not call AI');
+ await page.locator('#side-dialog-cancel').click();
+ assert.equal(await page.evaluate(()=>window.generatedArgs.length),1,'cancelling feedback must not call AI');
+ await page.locator('#facet-plan-regenerate').click();
+ await page.locator('#side-dialog-textarea').fill('이름과 쌍둥이 관계만 유지하고 성장 배경은 새롭게');
+ await page.locator('#side-dialog-confirm').click();
+ await page.locator('#facet-plan-approve').waitFor();assert.equal(await page.evaluate(()=>window.generatedArgs.length),2);const feedbackSent=await page.evaluate(()=>window.generatedArgs[1].prompt.some(row=>row.content.includes('이름과 쌍둥이 관계만 유지하고 성장 배경은 새롭게')));assert(feedbackSent,'User review feedback must reach stage-one replan request');await page.locator('#facet-plan-approve').click();await page.frameLocator('#result iframe').getByText('Ability: Sentinel',{exact:false}).waitFor();
  const pair=await page.evaluate(()=>window.generatedArgs.slice(1,3).map(x=>x.prompt));const args=pair[1];assert.equal(pair.length,2);assert(pair[0][1].content.includes('A quiet character'));assert(pair[0][1].content.includes('Let us meet at the cafe'));assert(args[0].content.includes('NEW-LIFE RECONSTRUCTION'));assert(args[1].content.includes('APPROVED AU DESIGN'));assert(!args[1].content.includes('A quiet character'));assert(!args[1].content.includes('Let us meet at the cafe'));assert(args[0].content.includes('Keep the original headings'));
  await page.locator('#reader-tools > summary').click();await page.locator('#edit').click();await page.locator('#edit-source').fill('Name: A\nAbility: Edited Sentinel');await page.locator('#save-edit').click();await page.frameLocator('#result iframe').getByText('Edited Sentinel',{exact:false}).waitFor();
  await page.locator('#reader-tools > summary').click();assert.equal(await page.locator('#continue').count(),0);assert.equal(await page.locator('[data-continuation-mode]').count(),0);

@@ -255,15 +255,16 @@ test('updated default prompts migrate v6 without destroying custom prompt edits'
  assert.equal(F.clean({promptRevision:6,prompt:''}).prompt,F.defaults.prompt);
  assert.equal(F.clean({prompt:'SOME UNVERSIONED PROMPT'}).prompt,F.defaults.prompt);
 });
-test('feedback input appears in compact AU review and escapes untrusted content',()=>{
+test('AU plan preview keeps regeneration and approval reachable without an inline feedback editor',()=>{
  const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const preview=new Function('E','smallIcon',read('facet.js')+';return facetPlanPreview;')(escape,()=>'<svg></svg>');
  const p=F.parsePlan(JSON.stringify({world:'중원',subjects:[{kind:'character',name:'Slade',au_name:'백서혁',core_identity:['경쟁심'],au_life:['가문의 장남','협객','독립적인 삶'],sheet_layout:['BASICS']}]}),'character');
  const html=preview({facetPhase:'plan',facetPlan:p,facetReviewDraft:'쌍둥이 유지 <script>alert(1)</script>'});
- assert(html.includes('facet-plan-feedback'));
- assert(html.includes('쌍둥이 유지 &lt;script&gt;'));
- assert(!html.includes('쌍둥이 유지 <script>'));
  assert(html.includes('facet-plan-regenerate'));
+ assert(html.includes('facet-plan-approve'));
+ assert(!html.includes('facet-plan-feedback'));
+ assert(!html.includes('side-dialog-textarea'));
+ assert(!html.includes('쌍둥이 유지'));
 });
 
 test('AU planner tests biography-independent social origins instead of repackaging study as family trade',()=>{
