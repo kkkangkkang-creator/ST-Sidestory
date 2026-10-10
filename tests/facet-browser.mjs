@@ -31,8 +31,8 @@ try {
 
 
  await page.locator('[data-mode="facet"]').click();
- await page.locator('[data-facet="au"]').fill('Sentinel AU');await page.locator('#generate').click();assert.equal(await page.evaluate(()=>window.lastArgs),undefined);
- await page.locator('.facet-prompt > summary').click();assert.equal(await page.locator('[data-facet="prompt"]').inputValue(),'');
+ await page.locator('[data-facet="au"]').fill('Sentinel AU');
+ await page.locator('.facet-prompt > summary').click();const defaultPrompt=await page.locator('[data-facet="prompt"]').inputValue();assert(defaultPrompt.includes('GENRE'));assert(defaultPrompt.includes('{{설정된AU}}'));
  await page.locator('[data-facet="prompt"]').fill('{{char}} / {{user}} / {{설정된AU}} / {{변경정도}} / {{유저관계설정}} / {{원본관계반영}} / {{유의사항}}');
  await page.locator('[data-facet="cautions"]').fill('Keep the original headings');
  await page.locator('[data-facet-choice="relationship"][data-value="true"]').click();assert(await page.locator('[data-facet-choice="originalRelationship"]').first().isVisible());
@@ -49,5 +49,5 @@ try {
  await page.locator('#reader-tools > summary').click();const pngDownload=page.waitForEvent('download');await page.locator('#save-image').click();const png=fs.readFileSync(await (await pngDownload).path());assert.equal(png.toString('ascii',1,4),'PNG');
  await page.locator('.work-folder-tabs [data-page="create"]').click();await page.locator('[data-facet="au"]').waitFor({state:'detached'});await page.locator('[data-mode="facet"]').click();assert.equal(await page.locator('[data-facet="au"]').inputValue(),'Sentinel AU');
  await page.setViewportSize({width:390,height:780});const width=await page.locator('.window').evaluate(e=>({client:e.clientWidth,scroll:e.scrollWidth}));assert(width.scroll<=width.client+1);await page.screenshot({path:'/tmp/facet-mobile.png'});
- assert.deepEqual(errors,[]);console.log('PASS facet: empty-prompt guard, macros/context, revise, no continuation, source/translation character save, tab isolation, mobile layout');
+ assert.deepEqual(errors,[]);console.log('PASS facet: default English prompt, macros/context, revise, no continuation, source/translation character save, tab isolation, mobile layout');
 }finally{await browser.close();}
