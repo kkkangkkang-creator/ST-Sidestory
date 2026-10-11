@@ -74,3 +74,29 @@ test('both AU writer paths enforce canonical names and avoid crude default manne
  assert(prior[0].content.includes('CHARACTER PRESENTATION:'));
  assert.equal(prior.length,2);
 });
+
+test('one-line socioeconomic/family background survives identity review and is not a mandatory AU biography',()=>{
+ const field=I.FIELDS.find(([key])=>key==='background_context');
+ assert.equal(field[1],'원본 성장 환경 · 한 줄');
+ const raw=identity();
+ raw.subjects[0].background_context='유복한 집안 \n 가족 분위기 엄격함';
+ raw.subjects[1].background_context='가정 형편 보통 · 가족 화목';
+ const approved=I.parse(raw,'both','none');
+ assert.equal(approved.subjects[0].background_context,'유복한 집안 가족 분위기 엄격함');
+ assert(I.markdown(approved).includes('원본 성장 환경 · 한 줄'));
+ const rows=F.writeMessages(options(),approved,'무협 AU');
+ assert.equal(rows.length,2);
+ assert(rows[1].content.includes('유복한 집안'));
+ assert(rows[0].content.includes('SOFT cue'));
+ assert(rows[0].content.includes('PROSE RESTRAINT'));
+ assert(rows[0].content.includes('Do not infer poor'));
+ const former=I.parse(identity(),'both','none');
+ assert.equal(former.subjects[0].background_context,'');
+});
+test('identity extraction constrains backdrop to a grounded clause and avoids intensifier inflation',()=>{
+ const rows=F.planMessages(options(),{text:'{}'},'무협 AU');
+ assert.equal(rows.length,2);
+ assert(rows[0].content.includes('background_context'));
+ assert(rows[0].content.includes('ONE short, grounded clause'));
+ assert(rows[0].content.includes('Use restrained and factual descriptions'));
+});
