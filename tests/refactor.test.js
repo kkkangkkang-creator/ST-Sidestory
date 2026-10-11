@@ -119,7 +119,7 @@ test('cleaned CSS removes obsolete UI classes while retaining current AU and mob
  for(const orphan of ['logo','summary-input','settings-grid','chat-mode-badge','archive-header-actions']){
   assert(!new RegExp('\\.'+orphan+'(?![\\w-])').test(style),orphan+' should be unused');
  }
- for(const live of ['facet-plan-preview','facet-plan-feedback','archive','mobile-switch','reader']){
+ for(const live of ['facet-plan-preview','facet-plan-actions','archive','mobile-switch','reader']){
   assert(style.includes('.'+live),live+' should be retained');
  }
 });

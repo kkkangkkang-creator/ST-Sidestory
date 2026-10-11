@@ -155,9 +155,9 @@ test('cultural AU naming applies to Japanese, wuxia and original family ties',()
  const f=F.clean({...F.defaults,target:'both',relation:'original',au:'일본 고등학교 AU'});
  const opts={facet:f,lengthPreset:'normal',language:'한국어'};
  const planning=F.planMessages(opts,{text:JSON.stringify({characters:[{name:'Slade'}],players:[{name:'Serena'}],dialogue:[]})},'일본 고등학교 AU');
- assert(planning[0].content.includes('Japanese school AU'));
- assert(planning[0].content.includes('Japanese school AU'));
- assert(planning[0].content.includes('twins or siblings'));
+ assert(planning[0].content.includes('culturally appropriate names'));
+ assert(planning[0].content.includes('culturally appropriate names'));
+ assert(planning[0].content.includes('siblings or twins'));
  const blueprint=F.parsePlan(JSON.stringify({world:'현대 일본 고등학교',subjects:[
    {kind:'character',name:'Slade',au_name:'사토 렌 (佐藤 蓮)',name_reason:'일본 고등학교',core_identity:['자신만만함'],au_life:['학생','학생회 대립','동아리'],sheet_layout:['BASICS: Name']},
    {kind:'user',name:'Serena',au_name:'사토 유이 (佐藤 結衣)',name_reason:'쌍둥이 남매',core_identity:['예리함'],au_life:['학생','도서위원','쌍둥이 오빠'],sheet_layout:['BASICS: Name']}
@@ -203,11 +203,11 @@ test('planning and writing stages share concise AU principles without exposing t
  const ctx={text:JSON.stringify({characters:[{name:'Slade',description:'SOURCE_REDACTED_FAMILY_AND_JOB'}],players:[],dialogue:[]})};
  const planRequest=F.planMessages(options,ctx,'urban fantasy');
  assert(planRequest[0].content.includes('coherent independent life'));
- assert(planRequest[0].content.includes('STAGE 1 — DESIGN AN AU LIFE'));
+ assert(planRequest[0].content.includes('AU DESIGN BLUEPRINT'));
  assert(planRequest[1].content.includes('SOURCE_REDACTED_FAMILY_AND_JOB'));
  const plan=F.parsePlan(JSON.stringify({world:'City of factions',subjects:[{kind:'character',name:'Slade',au_name:'Aerin',core_identity:['energetic'],au_life:['family status','growing up','learning a new path'],sheet_layout:['BASICS'],avoid_copying:['SOURCE_REDACTED_FAMILY_AND_JOB']}]}),'character');
  const rows=F.writeMessages(options,plan,'urban fantasy',null,'new');
- assert(rows[0].content.includes('STAGE 2 — WRITE FROM APPROVED DESIGN'));
+ assert(rows[0].content.includes('WRITE FROM APPROVED AU DESIGN'));
  assert(rows[0].content.includes('coherent independent life'));
  assert(!rows.some(r=>r.content.includes('SOURCE_REDACTED_FAMILY_AND_JOB')));
  assert(rows[1].content.includes('Aerin'));
@@ -275,7 +275,7 @@ test('AU planner tests biography-independent social origins instead of repackagi
  for(const expected of ['INDEPENDENT WORLD','INDIVIDUAL AU LIVES','minor hobbies','personal secrets','CHARACTER EXPRESSION'])assert(messages[0].content.includes(expected),expected);
  assert(!messages[0].content.includes('"avoid_copying"'));
  assert(messages[1].content.includes('Accounting major'));
- assert(messages[0].content.includes('twin'));
+ assert(messages[0].content.includes('NO REQUESTED RELATIONSHIP'));
 });
 
 test('AU world is genre-first and not retrofitted to source personality or popularity',()=>{
