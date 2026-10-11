@@ -48,6 +48,27 @@ async function collect(options,target,signal,{inspect=false,approvedFacetPlan=fa
  ctx.stats.tokenizer=counter.info();
  return {cid,chat,ctx,counter};
 }
+async function collectFacetOriginalProfiles(options,chat,signal){
+ const f=SideFacet.clean(options.facet);
+ if(options.mode!=='facet'||f.degree!=='preserve')return [];
+ const kinds=f.target==='both'?['character','user']:[f.target];
+ return Promise.all(kinds.map(async kind=>{
+  const id=kind==='character'?String(options.characterIds?.[0]||chat.characterIds?.[0]||''):
+   String(options.personaIds?.[0]||'').replace(/^persona:/,'')||String(chat.personaId||'');
+  if(!id)throw new Error((kind==='user'?'페르소나':'캐릭터')+' 원본을 찾지 못했어요. 원본 기반 재구성을 진행할 수 없어요.');
+  const card=await get(kind==='character'?'/characters/'+encodeURIComponent(id):'/characters/personas/'+encodeURIComponent(id),signal);
+  const data=card?.data&&typeof card.data==='object'?card.data:card||{};
+  const profile={kind,name:String(data.name||data.ch_name||card?.name||'').slice(0,180)};
+  for(const key of ['description','personality','scenario','mes_example']){
+   const v=data[key]??card?.[key];
+   if(typeof v==='string'&&v.trim())profile[key]=v.trim();
+  }
+  if(!['description','personality','scenario','mes_example'].some(k=>profile[k]))
+   throw new Error((kind==='user'?'페르소나':'캐릭터')+' 원본 시트가 비어 있어요. 원본 기반 재구성을 위해 시트를 확인해 주세요.');
+  return profile;
+ }));
+}
+
 async function generate(action='new'){
  if(busy)return;
  if(action==='facet-approve'){const source=current;await saveFacetIdentity();if(current?.id!==source?.id)return;}
@@ -130,7 +151,9 @@ async function generate(action='new'){
    }
    record.facetPhase='written';
    busyTask='facet-write';if(alive)render();say('2/2 · 승인한 정보로 새로운 AU 프로필을 작성하고 있어요.');
-   const writeRows=SideFacet.writeMessages(options,plan,task,prior,action);
+   const sourceProfiles=facet.degree==='preserve'?await collectFacetOriginalProfiles(options,bundle.chat,signal):null;
+   checkTask(target,signal);
+   const writeRows=SideFacet.writeMessages(options,plan,task,prior,action,sourceProfiles);
    fitted=await fitTokenBudget(writeRows,options.inputMaxTokens,bundle.counter);
    if(fitted.tokens>options.inputMaxTokens)throw new Error('승인한 정보와 이전 결과가 입력 한도를 넘어요. 입력 한도를 높이거나 이전 내용을 줄여 주세요.');
    record.inputTokens=planningInput+fitted.tokens;

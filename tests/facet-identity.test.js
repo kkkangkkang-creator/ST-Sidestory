@@ -127,3 +127,26 @@ test('Facet workspaces retain identity selections and default to AU',()=>{
  assert.equal(saved.facetIdentitySelections['character:a.png'],'record1');
  assert.equal(saved.facet.prompt,base.facet.prompt);
 });
+
+test('source-focused AU writing adds original sheets without mixing the separately selected relationships',()=>{
+ const cards=[{kind:'character',name:'A',description:'FULL_ORIGINAL_CHARACTER_SHEET',personality:'BOASTFUL'},{kind:'user',name:'B',description:'FULL_ORIGINAL_PERSONA_SHEET'}];
+ for(const relation of ['none','original','new','custom']){
+  const preserving=options(relation);preserving.facet.degree='preserve';
+  const result=F.writeMessages(preserving,identity(),'로판 AU',null,'new',cards);
+  assert(result[1].content.includes('FULL_ORIGINAL_CHARACTER_SHEET'));
+  assert(result[1].content.includes('FULL_ORIGINAL_PERSONA_SHEET'));
+  assert(result[0].content.includes('RELATIONSHIP FIREWALL'));
+  assert(result[1].content.includes('"relationshipMode":"'+relation+'"'));
+  const remaking=options(relation);remaking.facet.degree='rebuild';
+  const other=F.writeMessages(remaking,identity(),'로판 AU',null,'new',cards);
+  assert(!JSON.stringify(other).includes('FULL_ORIGINAL_CHARACTER_SHEET'));
+  assert(!JSON.stringify(other).includes('FULL_ORIGINAL_PERSONA_SHEET'));
+ }
+});
+test('only source-focused AU writing fetches original sheets, never the extraction phase',()=>{
+ const code=read('generation.js');
+ assert(code.includes("if(options.mode!=='facet'||f.degree!=='preserve')return []"));
+ assert(code.includes("const sourceProfiles=facet.degree==='preserve'?await collectFacetOriginalProfiles(options,bundle.chat,signal):null"));
+ assert(code.includes("SideFacet.writeMessages(options,plan,task,prior,action,sourceProfiles)"));
+ assert(code.indexOf("if(extract||action==='facet-replan')")<code.indexOf("const sourceProfiles=facet.degree"));
+});
