@@ -93,15 +93,41 @@ function facetSourcePlan(target=s.facet.target,relation=s.facet.relation){
  const selected={};for(const kind of facetSubjectKinds(target)){const source=facetSelectedSource(kind);if(!source)throw Error((kind==='user'?'페르소나':'캐릭터')+' 핵심정보가 없습니다. 핵심정보 추출에서 먼저 저장해 주세요.');selected[kind]=source;}
  return SideIdentity.combineSources(selected,target,relation);
 }
+function facetSourceDate(record){
+ const time=Number(record.editedAt||record.createdAt);
+ return Number.isFinite(time)&&time>0?new Date(time).toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'날짜 정보 없음';
+}
+function facetSourceDigest(record,kind){
+ const p=record.facetPlan?.subjects?.find(x=>x.kind===kind)||{};
+ const mood=Array.isArray(p.temperament)?p.temperament.filter(x=>typeof x==='string'&&x.trim()).slice(0,3).join(' · '):'';
+ const lines=[mood?'기질 · '+mood.slice(0,185):'',p.background_context?'성장 환경 · '+String(p.background_context).slice(0,130):'',p.speech?'말투 · '+String(p.speech).slice(0,140):''].filter(Boolean);
+ return '<div class="facet-source-digest">'+(lines.length?lines.map(x=>'<p>'+E(x)+'</p>').join(''):'<p>추출 내용을 펼쳐 확인할 수 있어요.</p>')+'</div>';
+}
+function facetSourceDetail(record,kind,key){
+ const p=record.facetPlan?.subjects?.find(x=>x.kind===kind)||{};
+ const rows=SideIdentity.FIELDS.map(([name,label,array])=>{
+  const raw=p[name],value=array?(Array.isArray(raw)?raw.join('\n'):''):String(raw||'');
+  return value.trim()?'<div class="facet-source-fact"><dt>'+E(label)+'</dt><dd>'+E(value)+'</dd></div>':'';
+ }).filter(Boolean).join('');
+ const rel=record.facetPlan?.relationship&&record.facetPlan.subjects?.length===2?'<div class="facet-source-fact"><dt>원본 관계</dt><dd>'+E(record.facetPlan.relationship)+'</dd></div>':'';
+ return '<details class="facet-source-details" data-ui-persist-open="'+E(key)+'"><summary>전체 추출 항목 보기</summary><dl>'+rows+rel+'</dl></details>';
+}
 function facetSourcesView(){
- return '<section class="facet-source-panel"><div class="row"><b>저장된 핵심정보</b><button id="facet-go-extract" class="text-action">추출 작업창 →</button></div>'+
- facetSubjectKinds(s.facet.target).map(kind=>{
-  const rows=facetSources(kind),chosen=facetSelectedSource(kind),label=kind==='user'?'유저':'캐릭터';
-  if(!rows.length)return '<p class="hint">'+label+' 정보가 없어요. 추출 작업창에서 저장해 주세요.</p>';
-  return '<label class="field"><span>'+label+' · '+E(chosen?.facetPlan.subjects.find(v=>v.kind===kind)?.name||'')+'</span><span class="facet-choices facet-source-choices">'+rows.slice(0,12).map((r,i)=>
-  '<button type="button" data-facet-source-kind="'+kind+'" data-facet-source="'+E(r.id)+'" aria-pressed="'+(r.id===chosen.id)+'" title="'+E(r.title)+'">'+E(r.facetPlan.subjects.find(v=>v.kind===kind)?.name||'인물')+' · '+E(new Date(r.editedAt||r.createdAt).toLocaleDateString('ko-KR'))+(i===0?' · 최신':'')+'</button>'
-  ).join('')+'</span></label>';
- }).join('')+'</section>';
+ const groups=facetSubjectKinds(s.facet.target).map(kind=>{
+  const list=facetSources(kind),selected=facetSelectedSource(kind),label=kind==='user'?'페르소나':'캐릭터';
+  if(!list.length)return '<section class="facet-source-person"><div class="facet-source-heading"><strong>'+label+'</strong><span>미추출</span></div><p class="facet-source-empty">저장된 핵심정보가 없어요. 추출 작업창에서 원본을 한 번 분석해 주세요.</p></section>';
+  const name=selected.facetPlan.subjects.find(x=>x.kind===kind)?.name||label;
+  const chosen='<div class="facet-source-active"><div class="facet-source-active-title"><strong>현재 선택본</strong><time>'+E(facetSourceDate(selected))+'</time></div>'+facetSourceDigest(selected,kind)+facetSourceDetail(selected,kind,'facet-selected-'+kind)+'</div>';
+  const versions=list.slice(0,24).map(r=>{
+   const isSelected=r.id===selected.id,person=r.facetPlan.subjects.find(x=>x.kind===kind);
+   return '<article class="facet-source-version'+(isSelected?' selected':'')+'"><div class="facet-source-version-head"><strong>'+E(person?.name||label)+'</strong><span>'+E(facetSourceDate(r))+'</span></div>'+
+    facetSourceDigest(r,kind)+facetSourceDetail(r,kind,'facet-compare-'+kind+'-'+r.id)+
+    '<button type="button" data-facet-source-kind="'+kind+'" data-facet-source="'+E(r.id)+'" aria-pressed="'+isSelected+'"'+(isSelected?' disabled':'')+'>'+(isSelected?'현재 사용 중':'이 추출본 선택')+'</button></article>';
+  }).join('');
+  return '<section class="facet-source-person"><div class="facet-source-heading"><strong>'+label+' · '+E(name)+'</strong><span>'+list.length+'개 저장됨</span></div>'+
+   chosen+'<details class="facet-source-picker" data-ui-persist-open="facet-picker-'+kind+'"><summary>다른 추출본 비교 · '+list.length+'개</summary><div class="facet-source-version-list" data-ui-scroll="facet-list-'+kind+'">'+versions+'</div></details></section>';
+ }).join('');
+ return '<section class="facet-source-panel"><div class="facet-source-top"><strong>저장된 핵심정보</strong><button type="button" id="facet-go-extract" class="text-action">추출 작업창 →</button></div><p class="facet-source-hint">선택한 정보로 AU를 생성해요. 다른 추출본을 펼쳐 비교할 수 있어요.</p>'+groups+'</section>';
 }
 function facetWorkspaceTabs(){
  return '<nav class="facet-choices facet-work-tabs" aria-label="다면 작업"><button data-facet-work="au" aria-pressed="'+(s.facetWorkspace!=='identity')+'">AU 생성</button><button data-facet-work="identity" aria-pressed="'+(s.facetWorkspace==='identity')+'">핵심정보 추출</button></nav>';

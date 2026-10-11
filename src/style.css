@@ -343,3 +343,33 @@
 
 /* Facet AU / identity workspace and choice rows */
 .facet-work-tabs{display:flex;gap:6px;padding:4px 0 12px}.facet-work-tabs button{flex:1;min-width:0}.facet-source-panel{margin-bottom:14px;padding:10px;border:1px solid var(--line);border-radius:10px}.facet-source-panel>.row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:6px}.facet-source-panel .field{margin-bottom:8px}.facet-source-choices{display:flex;gap:5px;max-height:134px;flex-wrap:wrap;overflow:auto}.facet-source-choices button{font-size:11px;flex:0 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;padding:5px 8px}
+
+/* Compact, readable Facet identity versions and optional full-field inspection. */
+.facet-source-panel{padding:11px;margin-bottom:14px;border:1px solid var(--line);border-radius:10px;min-width:0}
+.facet-source-top,.facet-source-heading,.facet-source-active-title,.facet-source-version-head{display:flex;justify-content:space-between;align-items:center;gap:7px;min-width:0}
+.facet-source-top{font-size:13px}.facet-source-top button{flex-shrink:0;font-size:11px}
+.facet-source-hint{font-size:11px;color:var(--muted);line-height:1.5;margin:5px 0}
+.facet-source-person{padding-top:9px;margin-top:9px;border-top:1px solid var(--line);min-width:0}
+.facet-source-heading{margin-bottom:7px;font-size:12px}
+.facet-source-heading strong,.facet-source-version-head strong{overflow-wrap:anywhere;min-width:0}
+.facet-source-heading>span,.facet-source-active-title time,.facet-source-version-head>span{font-size:10px;color:var(--muted);font-weight:400;flex-shrink:0}
+.facet-source-active{background:var(--tint);border:1px solid var(--line);border-radius:8px;padding:9px}
+.facet-source-active-title strong{font-size:11px}
+.facet-source-digest{display:grid;gap:3px;margin:6px 0;min-width:0}
+.facet-source-digest p{margin:0;font-size:11px;line-height:1.45;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.facet-source-details{font-size:11px}
+.facet-source-details summary,.facet-source-picker>summary{cursor:pointer;color:var(--ink);font-size:11px;line-height:1.5;list-style-position:inside}
+.facet-source-details[open] summary{margin-bottom:7px}
+.facet-source-details dl{display:grid;gap:6px;margin:0;padding:9px;background:var(--paper);border:1px solid var(--line);border-radius:7px;max-height:220px;overflow:auto}
+.facet-source-fact dt{font-size:10px;color:var(--muted);margin-bottom:1px}
+.facet-source-fact dd{margin:0;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
+.facet-source-picker{margin-top:6px;padding:3px 1px}
+.facet-source-picker>summary{font-weight:600;padding:5px 2px}
+.facet-source-version-list{display:grid;gap:7px;max-height:350px;overflow:auto;padding:5px 2px;overscroll-behavior:contain}
+.facet-source-version{border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:8px;min-width:0}
+.facet-source-version.selected{border-color:var(--accent)}
+.facet-source-version-head{font-size:11px}
+.facet-source-version button{display:block;margin:8px 0 0 auto;padding:6px 10px;border-radius:7px;font-size:11px;min-height:30px}
+.facet-source-version button[disabled]{opacity:.7}
+.facet-source-empty{font-size:11px;color:var(--muted);line-height:1.5;margin:4px 0}
+@media(max-width:850px){.facet-source-version-list{max-height:300px}.facet-source-active-title{flex-wrap:wrap;row-gap:3px}}
