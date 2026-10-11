@@ -334,3 +334,9 @@
 .side-dialog-field textarea#side-dialog-textarea{display:block;box-sizing:border-box;width:100%;min-width:0;min-height:108px;max-height:min(48dvh,340px);padding:9px 10px;resize:vertical;font:inherit;font-size:12px;line-height:1.55;overflow-y:auto}
 .side-dialog:has(#side-dialog-textarea){width:min(460px,calc(100vw - 24px))}
 @media(max-width:700px){.side-dialog-field textarea#side-dialog-textarea{min-height:122px;max-height:42dvh}}
+
+/* Compact, editable identity review; one scrolling content area. */
+.identity-toolbar{display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:7px 10px;border-bottom:1px solid var(--line);flex:none}
+.identity-toolbar button{width:30px;height:30px;padding:6px;display:inline-flex;align-items:center;justify-content:center}.identity-toolbar svg{width:16px;height:16px}.identity-toolbar span{font-size:10px;color:var(--muted);margin-left:auto}
+.identity-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px}.identity-field{display:block;min-width:0}.identity-field>span{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}.identity-field>div{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}.identity-field textarea{display:block;box-sizing:border-box;width:100%;min-height:32px;padding:6px 8px;font-size:13px;line-height:1.5;resize:vertical}.identity-wide{grid-column:1/-1}.identity-edit-actions{display:flex;justify-content:flex-end;gap:6px;padding:6px 12px;border-top:1px solid var(--line);flex:none}.identity-edit-actions[hidden]{display:none}.identity-edit-actions button{font-size:12px;padding:6px 10px}.identity-capture .facet-plan-subject{background:#fff;color:#222;border-color:#ddd}.identity-capture .identity-field>span{color:#666}
+.facet-inputs [data-facet-choice="relation"]{flex-basis:calc(50% - 6px)}

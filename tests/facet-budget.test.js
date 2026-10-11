@@ -5,7 +5,7 @@ const F=new Function(fs.readFileSync(new URL('../src/facet.js',import.meta.url),
 const ctx={text:JSON.stringify({characters:[{name:'A'}],players:[]})};
 const options=degree=>({facet:F.clean({...F.defaults,degree,au:'Fantasy'}),lengthPreset:'normal',language:'한국어'});
 const plan={world:'A court society',subjects:[{kind:'character',name:'A',au_name:'A',core_identity:['curious','competitive','cautious','proud'],au_life:['rural childhood','schooling','court service'],sheet_layout:['Name'],retained_constraints:['Keep the specified name']}],relationship:'none'};
-test('new rebuild blueprints reject excess cores without truncating; existing and preserve plans stay readable',()=>{
+test('legacy rebuild blueprints keep their validation; archived and preserve plans stay readable',()=>{
  assert.throws(()=>F.parsePlan(JSON.stringify(plan),'character','rebuild'),/3개를 초과/);
  assert.equal(F.parsePlan(JSON.stringify(plan),'character','preserve').subjects[0].core_identity.length,4);
  assert.equal(F.parsePlan(JSON.stringify(plan),'character').subjects[0].core_identity.length,4);
@@ -14,14 +14,6 @@ test('new rebuild blueprints reject excess cores without truncating; existing an
  assert.equal(parsed.subjects[0].core_identity.length,3);
  assert.deepEqual(parsed.subjects[0].retained_constraints,['Keep the specified name']);
  assert(F.writeMessages(options('rebuild'),parsed,'Fantasy',null)[1].content.includes('Keep the specified name'));
-});
-test('budget is attached only to rebuild planning even with an edited common prompt',()=>{
- for(const degree of ['rebuild','preserve']){
-  const o=options(degree);o.facet.prompt='User custom prompt';
-  const rows=F.planMessages(o,ctx,'Fantasy');
-  assert.equal(rows.length,2);
-  assert.equal(rows[0].content.includes('# ESSENCE-ONLY SOURCE BUDGET'),degree==='rebuild');
- }
 });
 const oldRebuild="ESSENCE-ONLY CONTINUITY\n\nPreserve the character's distinctive foundational temperament, psychological inclinations, underlying motivations, and ways of perceiving and responding. Let substantially different upbringing, relationships, and circumstances reshape their developed personality, values, confidence, fears, emotional defenses, ambitions, and outward expression.\n\nProminent source-world psychological traits may change or disappear when the experiences behind them do not occur. The result should be a plausible alternative development of the same individual, not an unrelated person or an artificially inverted original.";
 test('v8 default rebuild macro updates while customized macros remain intact',()=>{

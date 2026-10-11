@@ -50,6 +50,7 @@ async function collect(options,target,signal,{inspect=false,approvedFacetPlan=fa
 }
 async function generate(action='new'){
  if(busy)return;
+ if(action==='facet-approve'){const source=current;await saveFacetIdentity();if(current?.id!==source?.id)return;}
  if(!chatId||chatId!==activeChat()){say('현재 채팅에서 요술봉 메뉴로 다시 열어 주세요.',true);return;}
  const target=chatId,previous=action==='new'?null:current;
  if(action!=='new'&&!previous)return;
@@ -59,6 +60,7 @@ async function generate(action='new'){
  if(action==='continue'&&(previous?.mode==='facet'||options.mode==='facet')){say('다면은 이어쓰기를 지원하지 않아요. 수정 요청을 사용해 주세요.');return;}
  if(previous?.mode==='facet')options.facet=SideFacet.clean(previous.settings?.facet);
  if(options.mode==='facet'&&!options.facet.prompt.trim()){say('다면 프롬프트를 먼저 작성해 주세요.');return;}
+ if(options.mode==='facet'&&options.facet.relation==='custom'&&!options.facet.relationInput.trim()){say('새 관계 조건을 입력해 주세요.');return;}
  delete options.summaryByChat;
  const task=action==='new'?(options.mode==='facet'?options.facet.au.trim():s.request.trim()):['regenerate','facet-replan','facet-approve'].includes(action)?previous.request:
   $('followup')?.value.trim()||(action==='continue'?'앞의 결과를 바탕으로 다음 내용을 이어서 작성해줘.':'요청한 내용을 유지하면서 완전한 결과로 다시 만들어줘.');
@@ -79,7 +81,7 @@ async function generate(action='new'){
  };
  render();
  try{
-  if(['facet-replan','facet-approve'].includes(action)&&(!previous||previous.mode!=='facet'||(action==='facet-approve'&&previous.facetPhase!=='plan')))throw new Error('확인할 AU 설계안이 없어요. 설계를 먼저 생성해 주세요.');
+  if(['facet-replan','facet-approve'].includes(action)&&(!previous||previous.mode!=='facet'||(action==='facet-approve'&&previous.facetPhase!=='plan')))throw new Error('확인할 추출 정보가 없어요. 먼저 인물 정보를 추출해 주세요.');
   const useApprovedFacetPlan=options.mode==='facet'&&!!previous?.facetPlan&&!['new','facet-replan'].includes(action);
   const bundle=await collect(options,target,signal,{approvedFacetPlan:useApprovedFacetPlan});
   checkTask(target,signal);record.chatName=bundle.chat.name||'';
@@ -97,34 +99,35 @@ async function generate(action='new'){
    if(previousPlan&&action!=='new'&&action!=='facet-replan'){
     plan=SideFacet.parsePlan(JSON.stringify(previousPlan),facet.target);
    }else{
-    busyTask='facet-plan';if(alive)render();say('1/2 · 원본을 분석하고 AU 인물의 삶을 설계하고 있어요.');
+    busyTask='facet-plan';if(alive)render();say('1/2 · 원본에서 인물 정보만 추출하고 있어요.');
     const review=action==='facet-replan'?{previousPlan,feedback:String(previous?.facetReviewDraft||'').trim().slice(0,2000)}:undefined;
     const planRows=SideFacet.planMessages(options,bundle.ctx,task,review);
     const planFit=await fitTokenBudget(planRows,options.inputMaxTokens,bundle.counter);
-    if(planFit.tokens>options.inputMaxTokens)throw new Error('AU 설계 참고 자료가 입력 한도를 넘어요. 참고 범위나 고정 자료를 줄여 주세요.');
+    if(planFit.tokens>options.inputMaxTokens)throw new Error('인물 추출 참고 자료가 입력 한도를 넘어요. 참고 범위나 고정 자료를 줄여 주세요.');
     planningInput=planFit.tokens;checkTask(target,signal);
     // Thinking counts toward output caps; a small safety margin prevents truncation.
     // The plan prompt requests concise JSON, and failures NEVER trigger a billable automatic retry.
     const planMaxTokens=8500;
-    planText=await sendGeneration({connectionId:bundle.cid,messages:planFit.messages,parameters:{maxTokens:planMaxTokens},streaming:false,runId:runId+'-au-plan',useSillyTavernContext:false},options,'다면 · AU 설계',()=>{},bundle.counter);
+    planText=await sendGeneration({connectionId:bundle.cid,messages:planFit.messages,parameters:{maxTokens:planMaxTokens},streaming:false,runId:runId+'-au-plan',useSillyTavernContext:false},options,'다면 · 인물 추출',()=>{},bundle.counter);
     checkTask(target,signal);
-    try{plan=SideFacet.parsePlan(planText,facet.target,facet.degree);}
+    try{plan=SideIdentity.parse(SideFacet.readPlanJSON(planText),facet.target,facet.relation);}
     catch(error){throw new Error(error.message+' 자동 재호출은 비용 때문에 하지 않았어요. 필요할 때 직접 다시 생성해 주세요.');}
    }
    record.facetPlan=plan;
    if(action==='new'||action==='facet-replan'){
-    record.facetPhase='plan';record.content='';record.status='complete';record.facetReviewDraft='';record.title=('AU 설계 · '+task).slice(0,180);
+    record.facetPhase='plan';record.content=SideIdentity.markdown(plan);record.status='complete';record.facetReviewDraft='';record.title=('인물 추출 · '+task).slice(0,180);
     record.outputTokens=await bundle.counter.text(planText);
     record.inputTokens=planningInput;record.tokenizer=bundle.counter.info();checkTask(target,signal);
     await saveGenerated(record,previous);
-    if(showCompletedResult(record,false,target,signal))say('AU 설계안이 준비됐어요. 내용을 보고 승인하거나 다시 생성해 주세요.');
+    facetIdentityDrafts.delete(record.id);facetIdentityEditors.delete(record.id);
+    if(showCompletedResult(record,false,target,signal))say('인물 정보가 추출됐어요. 필요한 항목을 수정하고 AU 생성을 눌러 주세요.');
     return;
    }
    record.facetPhase='written';
-   busyTask='facet-write';if(alive)render();say('2/2 · AU 설계를 바탕으로 프로필을 작성하고 있어요.');
+   busyTask='facet-write';if(alive)render();say('2/2 · 승인한 정보로 새로운 AU 프로필을 작성하고 있어요.');
    const writeRows=SideFacet.writeMessages(options,plan,task,prior,action);
    fitted=await fitTokenBudget(writeRows,options.inputMaxTokens,bundle.counter);
-   if(fitted.tokens>options.inputMaxTokens)throw new Error('AU 설계와 이전 결과가 입력 한도를 넘어요. 입력 한도를 높이거나 이전 내용을 줄여 주세요.');
+   if(fitted.tokens>options.inputMaxTokens)throw new Error('승인한 정보와 이전 결과가 입력 한도를 넘어요. 입력 한도를 높이거나 이전 내용을 줄여 주세요.');
    record.inputTokens=planningInput+fitted.tokens;
   }else{
    const taskMessages=useSTContext?[{role:'user',content:C.contextualPrompt(options,task,prior,action)}]:C.messages(options,bundle.ctx,task,prior,action);

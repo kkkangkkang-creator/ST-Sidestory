@@ -83,17 +83,6 @@ test('dual-target output can save each complete source sheet independently',()=>
  assert(messages[0].content.includes(F.DETAIL_HINTS.detailed));
 });
 
-test('both AU degrees retain character without preserving a copied biography or losing sheet format',()=>{
- const f=F.clean({...F.defaults,degree:'rebuild',target:'user',au:'Sentinel AU'});
- const expanded=F.expand(f,{char:'Character',user:'Persona'});
- for(const piece of ['translating their original biographies','Character Sheets','biographical continuity','biographical templates','source sheets','ESSENCE-ONLY CONTINUITY'])
-  assert(expanded.includes(piece),piece);
- assert(expanded.includes(f.phrases.rebuild));
- assert(!expanded.includes('{{변경정도}}'));
- const anchored=F.expand(F.clean({...F.defaults,degree:'preserve'}),{char:'Character',user:'Persona'});
- assert(anchored.includes('SOURCE-FOCUSED CONTINUITY'));
- assert(anchored.includes('psychological continuity'));
-});
 test('previously saved editor prompt and degree phrases reset exactly once on upgrade',()=>{
  const old=F.clean({target:'user',degree:'rebuild',relation:'new',au:'Guide AU',cautions:'No role swapping',
   prompt:'OLD CUSTOM PROMPT',phrases:{preserve:'OLD CUSTOM A',rebuild:'OLD CUSTOM B'}});
@@ -155,9 +144,9 @@ test('cultural AU naming applies to Japanese, wuxia and original family ties',()
  const f=F.clean({...F.defaults,target:'both',relation:'original',au:'일본 고등학교 AU'});
  const opts={facet:f,lengthPreset:'normal',language:'한국어'};
  const planning=F.planMessages(opts,{text:JSON.stringify({characters:[{name:'Slade'}],players:[{name:'Serena'}],dialogue:[]})},'일본 고등학교 AU');
- assert(planning[0].content.includes('culturally appropriate names'));
- assert(planning[0].content.includes('culturally appropriate names'));
- assert(planning[0].content.includes('siblings or twins'));
+ assert(planning[0].content.includes('EXTRACT IDENTITY ONLY'));
+ assert(planning[0].content.includes('EXTRACT IDENTITY ONLY'));
+ assert(planning[1].content.includes('original'));
  const blueprint=F.parsePlan(JSON.stringify({world:'현대 일본 고등학교',subjects:[
    {kind:'character',name:'Slade',au_name:'사토 렌 (佐藤 蓮)',name_reason:'일본 고등학교',core_identity:['자신만만함'],au_life:['학생','학생회 대립','동아리'],sheet_layout:['BASICS: Name']},
    {kind:'user',name:'Serena',au_name:'사토 유이 (佐藤 結衣)',name_reason:'쌍둥이 남매',core_identity:['예리함'],au_life:['학생','도서위원','쌍둥이 오빠'],sheet_layout:['BASICS: Name']}
@@ -197,24 +186,6 @@ test('incomplete model JSON gives an actionable failure instead of silent accept
  assert.throws(()=>F.parsePlan('I cannot output JSON','character'),/JSON/);
 });
 
-test('planning and writing stages share concise AU principles without exposing the old life',()=>{
- const facet=F.clean({...F.defaults,target:'character',degree:'rebuild',au:'urban fantasy'});
- const options={facet,lengthPreset:'normal',language:'한국어'};
- const ctx={text:JSON.stringify({characters:[{name:'Slade',description:'SOURCE_REDACTED_FAMILY_AND_JOB'}],players:[],dialogue:[]})};
- const planRequest=F.planMessages(options,ctx,'urban fantasy');
- assert(planRequest[0].content.includes('coherent independent life'));
- assert(planRequest[0].content.includes('AU DESIGN BLUEPRINT'));
- assert(planRequest[1].content.includes('SOURCE_REDACTED_FAMILY_AND_JOB'));
- const plan=F.parsePlan(JSON.stringify({world:'City of factions',subjects:[{kind:'character',name:'Slade',au_name:'Aerin',core_identity:['energetic'],au_life:['family status','growing up','learning a new path'],sheet_layout:['BASICS'],avoid_copying:['SOURCE_REDACTED_FAMILY_AND_JOB']}]}),'character');
- const rows=F.writeMessages(options,plan,'urban fantasy',null,'new');
- assert(rows[0].content.includes('WRITE FROM APPROVED AU DESIGN'));
- assert(rows[0].content.includes('coherent independent life'));
- assert(!rows.some(r=>r.content.includes('SOURCE_REDACTED_FAMILY_AND_JOB')));
- assert(rows[1].content.includes('Aerin'));
- assert(!rows[1].content.includes('avoid_copying'));
- assert(planRequest[0].content.length<13000);
- assert(rows[0].content.length<12000);
-});
 test('AU reconstruction degree changes psychological continuity, never requiring the old life path',()=>{
  const a=F.clean({...F.defaults,target:'both',degree:'preserve',relation:'original',au:'무협'});
  const b=F.clean({...F.defaults,target:'both',degree:'rebuild',relation:'original',au:'무협'});
@@ -229,23 +200,6 @@ test('AU reconstruction degree changes psychological continuity, never requiring
  assert(a.phrases.preserve.includes('psychological continuity'));
  assert(b.phrases.rebuild.includes('substantially different upbringing'));
  assert(b.phrases.rebuild.includes('outward expression'));
-});
-test('AU plan regeneration incorporates optional user feedback and rethinks prior life, with no new API stage',()=>{
- const facet=F.clean({...F.defaults,au:'무협',target:'both',relation:'original',degree:'preserve'});
- const options={facet,lengthPreset:'normal',language:'한국어'};
- const ctx={text:JSON.stringify({characters:[{name:'Slade',description:'Original history'}],players:[{name:'Serena',description:'Original profile'}],dialogue:[]})};
- const first=F.planMessages(options,ctx,'무협');
- assert.equal(first.length,2);
- const old={world:'낙양',subjects:[{kind:'character',au_name:'백서혁',au_life:['낭인 출신']},{kind:'user',au_name:'백서령',au_life:['상단 재정 관리자','상인 가족의 딸']}],relationship:'쌍둥이'};
- const review=F.planMessages(options,ctx,'무협',{previousPlan:old,feedback:'이름과 쌍둥이 관계는 유지하되 세레나의 사회적 위치와 성장 배경은 새로 설계해줘'});
- assert.equal(review.length,3);
- assert(review[2].content.includes('이름과 쌍둥이 관계는 유지'));
- assert(review[2].content.includes('상단 재정 관리자'));
- assert(review[2].content.includes('not required to preserve'));
- assert(review[0].content.includes('INDIVIDUAL AU LIVES'));
- assert(review[0].content.includes('CHARACTER EXPRESSION'));
- const empty=F.planMessages(options,ctx,'무협',{previousPlan:old,feedback:'   '});
- assert(empty[2].content.includes('genuinely different overall AU life direction'));
 });
 test('updated default prompts migrate v6 without destroying custom prompt edits',()=>{
  const legacy={promptRevision:6,prompt:'{{설정된AU}} - KEEP MY CUSTOM PROMPT',phrases:{rebuild:'MY PERSONAL REBUILD RULES'}};
@@ -265,26 +219,4 @@ test('AU plan preview keeps regeneration and approval reachable without an inlin
  assert(!html.includes('facet-plan-feedback'));
  assert(!html.includes('side-dialog-textarea'));
  assert(!html.includes('쌍둥이 유지'));
-});
-
-test('AU planner tests biography-independent social origins instead of repackaging study as family trade',()=>{
- const f=F.clean({...F.defaults,target:'user',degree:'preserve',au:'무협'});
- const context={text:JSON.stringify({characters:[],players:[{name:'Serena',description:'Accounting major and shy'}],dialogue:[]})};
- const messages=F.planMessages({facet:f,lengthPreset:'normal',language:'한국어'},context,'무협');
- assert.equal(messages.length,2);
- for(const expected of ['INDEPENDENT WORLD','INDIVIDUAL AU LIVES','minor hobbies','personal secrets','CHARACTER EXPRESSION'])assert(messages[0].content.includes(expected),expected);
- assert(!messages[0].content.includes('"avoid_copying"'));
- assert(messages[1].content.includes('Accounting major'));
- assert(messages[0].content.includes('NO REQUESTED RELATIONSHIP'));
-});
-
-test('AU world is genre-first and not retrofitted to source personality or popularity',()=>{
- const options={facet:F.clean({...F.defaults,target:'both',au:'무협 AU'}),lengthPreset:'normal',language:'한국어'};
- const ctx={text:JSON.stringify({characters:[{name:'Slade',personality:'Competitive, wants attention'}],players:[{name:'Serena',description:'Accounting major'}],dialogue:[]})};
- const rows=F.planMessages(options,ctx,'무협 AU');
- assert.equal(rows.length,2);
- const system=rows[0].content;
- for(const term of ['INDEPENDENT WORLD','without these particular characters','familiar genre conventions','spectacles','RELATIONAL PREMISE','INDIVIDUAL AU LIVES','protagonist-tailored spectacles'])assert(system.includes(term),term);
- assert(system.includes('Honor explicitly requested unconventional settings'));
- assert(rows[1].content.includes('Accounting major'),'original context path remains unchanged');
 });
