@@ -108,7 +108,7 @@ async function generate(action='new'){
     const planMaxTokens=8500;
     planText=await sendGeneration({connectionId:bundle.cid,messages:planFit.messages,parameters:{maxTokens:planMaxTokens},streaming:false,runId:runId+'-au-plan',useSillyTavernContext:false},options,'다면 · AU 설계',()=>{},bundle.counter);
     checkTask(target,signal);
-    try{plan=SideFacet.parsePlan(planText,facet.target);}
+    try{plan=SideFacet.parsePlan(planText,facet.target,facet.degree);}
     catch(error){throw new Error(error.message+' 자동 재호출은 비용 때문에 하지 않았어요. 필요할 때 직접 다시 생성해 주세요.');}
    }
    record.facetPlan=plan;
