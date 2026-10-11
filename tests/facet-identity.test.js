@@ -150,3 +150,15 @@ test('only source-focused AU writing fetches original sheets, never the extracti
  assert(code.includes("SideFacet.writeMessages(options,plan,task,prior,action,sourceProfiles)"));
  assert(code.indexOf("if(extract||action==='facet-replan')")<code.indexOf("const sourceProfiles=facet.degree"));
 });
+
+test('facet identity aliases are independently stored per subject and survive backup normalization',()=>{
+ const record={id:'alias-test',mode:'facet',facetPhase:'plan',title:'인물 추출 · A · B',content:'source',request:'',chatId:'test',createdAt:Date.now(),
+  settings:{facet:options().facet},facetPlan:I.parse(identity(),'both','none'),facetLabels:{character:'A · 원본성격',user:'B · 다듬은 버전'}};
+ const cleaned=C.backup({kind:'st-sidestory-backup',version:2,records:[record]})[0];
+ assert.deepEqual(cleaned.facetLabels,{character:'A · 원본성격',user:'B · 다듬은 버전'});
+ assert.equal(cleaned.facetPlan.subjects[0].name,'A');
+ assert.equal(cleaned.facetPlan.subjects[1].name,'B');
+ assert.equal(cleaned.title,'인물 추출 · A · B');
+ const oldRecord={...record};delete oldRecord.facetLabels;
+ assert.equal(C.backup({kind:'st-sidestory-backup',version:2,records:[oldRecord]})[0].facetLabels,undefined);
+});

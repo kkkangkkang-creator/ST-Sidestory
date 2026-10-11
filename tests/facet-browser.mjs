@@ -108,6 +108,12 @@ try {
  assert((await page.locator('[data-ui-persist-open="facet-selected-character"]').textContent()).includes('REVIEWED_GREEN'),'selected full preview shows edited fields');
  await page.locator('[data-ui-persist-open="facet-picker-character"] summary').click();
  assert(await page.locator('.facet-source-version').count()>0,'version comparison visible');
+ await page.locator('.facet-source-active [data-facet-rename-kind="character"]').click();
+ await page.locator('#side-dialog-input').fill('A · 수정한 핵심정보');
+ await page.locator('#side-dialog-confirm').click();
+ assert((await page.locator('.facet-source-active .facet-source-name strong').textContent()).includes('A · 수정한 핵심정보'),'alias must show in selected version title');
+ assert((await page.locator('.facet-source-version.selected .facet-source-name strong').first().textContent()).includes('A · 수정한 핵심정보'),'alias must appear in version list');
+
  await page.setViewportSize({width:390,height:780});
  const scrollBefore=await page.locator('.compose-scroll').evaluate(el=>{el.scrollTop=245;return el.scrollTop;});
  assert(scrollBefore>20,'mobile AU composer should scroll');
