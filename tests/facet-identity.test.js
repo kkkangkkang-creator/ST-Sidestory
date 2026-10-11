@@ -100,3 +100,30 @@ test('identity extraction constrains backdrop to a grounded clause and avoids in
  assert(rows[0].content.includes('ONE short, grounded clause'));
  assert(rows[0].content.includes('Use restrained and factual descriptions'));
 });
+
+test('saved identity records are reusable for multiple AUs without another extraction',()=>{
+ const source=identity(),character={id:'char',facetPlan:I.parse(source,'character','none')},persona={id:'persona',facetPlan:I.parse(source,'user','none')};
+ const reviewed=I.combineSources({character,user:persona},'both','new');
+ assert.deepEqual(reviewed.subjects.map(x=>x.name),['A','B']);
+ assert.equal(reviewed.relationship,'');
+ for(const au of ['무협 AU','로판 AU','헌터 AU']){
+  const opts=options('new');opts.facet.au=au;
+  const messages=F.writeMessages(opts,reviewed,au);
+  assert.equal(messages.length,2);
+  assert(messages[1].content.includes(au));
+  assert(!messages.some(x=>x.content.includes('EXTRACT IDENTITY ONLY')));
+ }
+ const paired=I.parse(source,'both','original');
+ assert.equal(I.combineSources({character:{id:'same',facetPlan:paired},user:{id:'same',facetPlan:paired}},'both','original').relationship,'siblings');
+ assert.throws(()=>I.combineSources({character,user:persona},'both','original'),/동일한 기록/);
+});
+test('Facet workspaces retain identity selections and default to AU',()=>{
+ const base=C.settings({});
+ assert.equal(base.facetWorkspace,'au');
+ assert.equal(base.facetIdentityTarget,'character');
+ const saved=C.settings({...base,facetWorkspace:'identity',facetIdentityTarget:'both',facetIdentitySelections:{'character:a.png':'record1'}});
+ assert.equal(saved.facetWorkspace,'identity');
+ assert.equal(saved.facetIdentityTarget,'both');
+ assert.equal(saved.facetIdentitySelections['character:a.png'],'record1');
+ assert.equal(saved.facet.prompt,base.facet.prompt);
+});

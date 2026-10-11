@@ -16,7 +16,7 @@ function showCompletedResult(record,translation,target,signal){
  if(!alive||signal?.aborted||target!==activeChat())return false;
  closeFeature();referencesOpen=false;
  s.requestDrafts[s.mode]=s.request;s.mode=record.mode;s.request=s.requestDrafts[s.mode]||'';
- current=record;continuationMode=null;page='create';mobilePane='result';viewEpoch++;
+ current=record;if(record.mode==='facet')s.facetWorkspace=record.facetPhase==='plan'?'identity':'au';continuationMode=null;page='create';mobilePane='result';viewEpoch++;
  translationShown=translation;translationDraft=null;raw=false;editing=false;
  expanded=record.mode==='visual';
  return true;
@@ -52,22 +52,27 @@ async function generate(action='new'){
  if(busy)return;
  if(action==='facet-approve'){const source=current;await saveFacetIdentity();if(current?.id!==source?.id)return;}
  if(!chatId||chatId!==activeChat()){say('현재 채팅에서 요술봉 메뉴로 다시 열어 주세요.',true);return;}
- const target=chatId,previous=action==='new'?null:current;
- if(action!=='new'&&!previous)return;
+ const extract=action==='facet-extract',target=chatId,previous=action==='new'||extract?null:current;
+ if(action!=='new'&&!extract&&!previous)return;
  const viewIdAtStart=current?.id||null,viewEpochAtStart=viewEpoch,before=current;
- const options=referenceOptions();
+ const options=referenceOptions();if(extract){options.mode='facet';options.facet.target=s.facetIdentityTarget;options.facet.relation=s.facetIdentityRelation;}
  if(previous)options.mode=action==='continue'&&(continuationMode in C.MODES)?continuationMode:previous.mode;
  if(action==='continue'&&(previous?.mode==='facet'||options.mode==='facet')){say('다면은 이어쓰기를 지원하지 않아요. 수정 요청을 사용해 주세요.');return;}
  if(previous?.mode==='facet')options.facet=SideFacet.clean(previous.settings?.facet);
- if(options.mode==='facet'&&!options.facet.prompt.trim()){say('다면 프롬프트를 먼저 작성해 주세요.');return;}
- if(options.mode==='facet'&&options.facet.relation==='custom'&&!options.facet.relationInput.trim()){say('새 관계 조건을 입력해 주세요.');return;}
+ if(options.mode==='facet'&&!extract&&!options.facet.prompt.trim()){say('다면 프롬프트를 먼저 작성해 주세요.');return;}
+ if(options.mode==='facet'&&!extract&&options.facet.relation==='custom'&&!options.facet.relationInput.trim()){say('새 관계 조건을 입력해 주세요.');return;}
  delete options.summaryByChat;
- const task=action==='new'?(options.mode==='facet'?options.facet.au.trim():s.request.trim()):['regenerate','facet-replan','facet-approve'].includes(action)?previous.request:
+ const task=extract?'원본 핵심정보 추출':action==='new'?(options.mode==='facet'?options.facet.au.trim():s.request.trim()):['regenerate','facet-replan','facet-approve'].includes(action)?previous.request:
   $('followup')?.value.trim()||(action==='continue'?'앞의 결과를 바탕으로 다음 내용을 이어서 작성해줘.':'요청한 내용을 유지하면서 완전한 결과로 다시 만들어줘.');
  if(!task){say('보고 싶은 내용을 한 줄 적어 주세요.');$('request')?.focus();return;}
  if(previous&&previous.chatId!==target){say('다른 채팅에서 만든 결과는 이 채팅에서 이어 쓸 수 없어요.',true);return;}
  if(options.mode==='think'){say('이전 생각하기 기록은 읽기와 저장만 지원해요.');return;}
  if(action==='new'&&options.mode!=='facet'){C.rememberInput(s,task,{chatId:target,characterIds:s.characterIds});persist();}
+ let selectedIdentity=null;
+ if(options.mode==='facet'&&action==='new'){
+  try{selectedIdentity=facetSourcePlan(options.facet.target,options.facet.relation);}
+  catch(e){s.facetIdentityTarget=options.facet.target;switchFacetWorkspace('identity');say(e.message,true);return;}
+ }
  referencesOpen=false;busy=true;busyTask='generation';editing=false;page='create';mobilePane='result';
  controller=new AbortController();const signal=controller.signal;runId=H.uuid();let partial='';
  const record={
@@ -82,7 +87,7 @@ async function generate(action='new'){
  render();
  try{
   if(['facet-replan','facet-approve'].includes(action)&&(!previous||previous.mode!=='facet'||(action==='facet-approve'&&previous.facetPhase!=='plan')))throw new Error('확인할 추출 정보가 없어요. 먼저 인물 정보를 추출해 주세요.');
-  const useApprovedFacetPlan=options.mode==='facet'&&!!previous?.facetPlan&&!['new','facet-replan'].includes(action);
+  const useApprovedFacetPlan=options.mode==='facet'&&(!!selectedIdentity||!!previous?.facetPlan&&!['new','facet-replan','facet-extract'].includes(action));
   const bundle=await collect(options,target,signal,{approvedFacetPlan:useApprovedFacetPlan});
   checkTask(target,signal);record.chatName=bundle.chat.name||'';
   if(options.mode==='facet'&&!useApprovedFacetPlan){
@@ -96,7 +101,7 @@ async function generate(action='new'){
    const facet=SideFacet.clean(options.facet);
    const previousPlan=previous?.mode==='facet'&&previous.facetPlan?previous.facetPlan:null;
    let plan,planningInput=0,planText='';
-   if(previousPlan&&action!=='new'&&action!=='facet-replan'){
+   if(selectedIdentity){plan=selectedIdentity;}else if(previousPlan&&action!=='new'&&action!=='facet-replan'&&!extract){
     plan=SideFacet.parsePlan(JSON.stringify(previousPlan),facet.target);
    }else{
     busyTask='facet-plan';if(alive)render();say('1/2 · 원본에서 인물 정보만 추출하고 있어요.');
@@ -114,13 +119,13 @@ async function generate(action='new'){
     catch(error){throw new Error(error.message+' 자동 재호출은 비용 때문에 하지 않았어요. 필요할 때 직접 다시 생성해 주세요.');}
    }
    record.facetPlan=plan;
-   if(action==='new'||action==='facet-replan'){
-    record.facetPhase='plan';record.content=SideIdentity.markdown(plan);record.status='complete';record.facetReviewDraft='';record.title=('인물 추출 · '+task).slice(0,180);
+   if(extract||action==='facet-replan'){
+    record.facetPhase='plan';record.content=SideIdentity.markdown(plan);record.status='complete';record.facetReviewDraft='';record.title=('인물 추출 · '+(plan.subjects||[]).map(p=>p.name).join(' · ')).slice(0,180);
     record.outputTokens=await bundle.counter.text(planText);
     record.inputTokens=planningInput;record.tokenizer=bundle.counter.info();checkTask(target,signal);
     await saveGenerated(record,previous);
     facetIdentityDrafts.delete(record.id);facetIdentityEditors.delete(record.id);
-    if(showCompletedResult(record,false,target,signal))say('인물 정보가 추출됐어요. 필요한 항목을 수정하고 AU 생성을 눌러 주세요.');
+    if(showCompletedResult(record,false,target,signal))say('핵심정보를 저장했어요. 수정한 뒤 AU 생성에서 재사용할 수 있어요.');
     return;
    }
    record.facetPhase='written';

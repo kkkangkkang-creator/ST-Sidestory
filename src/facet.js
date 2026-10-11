@@ -1,6 +1,23 @@
 /* Fixed, editable identity bridge. Only allowlisted fields cross into AU writing. */
 const SideIdentity=(()=>{
  const SCHEMA='sidestory-identity-v1';
+ function combineSources(sources,target='character',relation='none'){
+ const kinds=target==='both'?['character','user']:[target];
+ const subjects=kinds.map(kind=>{
+  const plan=sources[kind]?.facetPlan;
+  if(plan?.schema!==SCHEMA)throw Error('저장된 핵심정보가 없습니다.');
+  const p=plan.subjects.find(v=>v.kind===kind);if(!p)throw Error('선택한 핵심정보에 해당 인물이 없어요.');
+  return {...p};
+ });
+ let relationship='';
+ if(relation==='original'){
+  const chosen=kinds.map(kind=>sources[kind]);
+  if(!chosen.every(r=>r.id===chosen[0].id))throw Error('원본 관계를 유지하려면 두 인물이 함께 추출된 동일한 기록을 선택해 주세요.');
+  relationship=chosen[0].facetPlan.relationship||'';
+  if(!relationship)throw Error('원본 관계 정보가 없어요. 두 인물을 함께 추출하면서 관계를 포함해 주세요.');
+ }
+ return parse({schema:SCHEMA,subjects,relationship,counterpart:null},target,relation);
+}
  const FIELDS=[['name','이름'],['gender','성별'],['age','나이 · 연령대'],['relative_age','상대적 연령'],['alignment','원본의 성향'],['background_context','원본 성장 환경 · 한 줄'],['hair','머리색'],['eyes','눈색'],['height','키 · 상대적 키'],['build','체격'],['design','전체적인 외관 인상'],['temperament','핵심 성격적 기질',true],['speech','말투'],['interpersonal','대인 반응',true],['sheet_layout','시트 항목 · 내용 제외',true]];
  const EXTRACT_PROMPT=`# EXTRACT IDENTITY ONLY
 Extract source facts into the fixed identity schema. This is NOT AU design: do not invent a world, career, skill, past, or new relationship. Use only facts supported by the references. Use "원본에 명시 없음" (or its output-language equivalent) when unspecified; do not fill gaps creatively.
@@ -56,8 +73,67 @@ For complete profiles, use each subject's reviewed neutral sheet_layout in order
   if(plan.relationship)parts.push('## 유지할 원본 관계\n'+plan.relationship);
   return parts.join('\n\n');
  }
- return {SCHEMA,FIELDS,EXTRACT_PROMPT,WRITE_SYSTEM,parse,request,write,markdown};
+ return {SCHEMA,FIELDS,EXTRACT_PROMPT,WRITE_SYSTEM,parse,request,write,markdown,combineSources};
 })();
+
+
+const facetWorkCache=new Map();
+function facetSubjectKinds(target){return target==='both'?['character','user']:[target];}
+function facetSourceKey(kind){const source=kind==='character'?(s.characterIds||[])[0]:(s.personaIds||[])[0];return source?kind+':'+source:'';}
+function facetSources(kind){
+ const key=facetSourceKey(kind),source=key.slice(kind.length+1);if(!source)return [];
+ return records.filter(r=>{
+  if(r.mode!=='facet'||r.facetPhase!=='plan'||r.facetPlan?.schema!==SideIdentity.SCHEMA||!r.facetPlan.subjects?.some(x=>x.kind===kind))return false;
+  const sourceId=kind==='character'?(r.characterIds||[])[0]:(r.settings?.personaIds||[])[0];
+  return sourceId===source;
+ }).sort((a,b)=>(b.editedAt||b.createdAt||0)-(a.editedAt||a.createdAt||0));
+}
+function facetSelectedSource(kind){const rows=facetSources(kind),chosen=s.facetIdentitySelections?.[facetSourceKey(kind)];return rows.find(r=>r.id===chosen)||rows[0]||null;}
+function facetSourcePlan(target=s.facet.target,relation=s.facet.relation){
+ const selected={};for(const kind of facetSubjectKinds(target)){const source=facetSelectedSource(kind);if(!source)throw Error((kind==='user'?'페르소나':'캐릭터')+' 핵심정보가 없습니다. 핵심정보 추출에서 먼저 저장해 주세요.');selected[kind]=source;}
+ return SideIdentity.combineSources(selected,target,relation);
+}
+function facetSourcesView(){
+ return '<section class="facet-source-panel"><div class="row"><b>저장된 핵심정보</b><button id="facet-go-extract" class="text-action">추출 작업창 →</button></div>'+
+ facetSubjectKinds(s.facet.target).map(kind=>{
+  const rows=facetSources(kind),chosen=facetSelectedSource(kind),label=kind==='user'?'유저':'캐릭터';
+  if(!rows.length)return '<p class="hint">'+label+' 정보가 없어요. 추출 작업창에서 저장해 주세요.</p>';
+  return '<label class="field"><span>'+label+' · '+E(chosen?.facetPlan.subjects.find(v=>v.kind===kind)?.name||'')+'</span><span class="facet-choices facet-source-choices">'+rows.slice(0,12).map((r,i)=>
+  '<button type="button" data-facet-source-kind="'+kind+'" data-facet-source="'+E(r.id)+'" aria-pressed="'+(r.id===chosen.id)+'" title="'+E(r.title)+'">'+E(r.facetPlan.subjects.find(v=>v.kind===kind)?.name||'인물')+' · '+E(new Date(r.editedAt||r.createdAt).toLocaleDateString('ko-KR'))+(i===0?' · 최신':'')+'</button>'
+  ).join('')+'</span></label>';
+ }).join('')+'</section>';
+}
+function facetWorkspaceTabs(){
+ return '<nav class="facet-choices facet-work-tabs" aria-label="다면 작업"><button data-facet-work="au" aria-pressed="'+(s.facetWorkspace!=='identity')+'">AU 생성</button><button data-facet-work="identity" aria-pressed="'+(s.facetWorkspace==='identity')+'">핵심정보 추출</button></nav>';
+}
+function facetExtractInputs(){
+ const target=s.facetIdentityTarget,both=(s.characterIds||[]).length&&(s.personaIds||[]).length;
+ const buttons=[['character','캐릭터'],['user','유저'],['both','둘 다']].map(([value,label])=>'<button data-facet-extract-target="'+value+'" aria-pressed="'+(target===value)+'" '+(value==='both'&&!both?'disabled':'')+'>'+label+'</button>').join('');
+ const rel=target==='both'?field('원본 관계', '<div class="facet-choices"><button data-facet-extract-relation="original" aria-pressed="'+(s.facetIdentityRelation==='original')+'">함께 추출</button><button data-facet-extract-relation="none" aria-pressed="'+(s.facetIdentityRelation==='none')+'">제외</button></div>'):'';
+ return '<div class="facet-inputs">'+field('추출할 원본','<div class="facet-choices">'+buttons+'</div>')+rel+'<p class="hint">한 번 추출해 검토·저장하면 여러 AU에서 재사용할 수 있어요.</p><details class="facet-prompt"><summary>핵심정보 추출 프롬프트</summary><textarea data-facet="extractionPrompt" rows="9" maxlength="16000">'+E(s.facet.extractionPrompt)+'</textarea></details></div>';
+}
+function facetWorkspaceMatches(record,work){return record?.mode==='facet'&&(work==='identity'?record.facetPhase==='plan':record.facetPhase!=='plan');}
+function switchFacetWorkspace(value){
+ const next=value==='identity'?'identity':'au',previous=s.facetWorkspace==='identity'?'identity':'au';
+ if(s.mode!=='facet')switchWorkMode('facet');
+ if(current?.mode==='facet')facetWorkCache.set(chatId+':'+previous,current.id);
+ s.facetWorkspace=next;
+ const remembered=facetWorkCache.get(chatId+':'+next);
+ current=records.find(r=>r.id===remembered&&r.chatId===chatId&&facetWorkspaceMatches(r,next))||
+  records.filter(r=>r.chatId===chatId&&facetWorkspaceMatches(r,next)).sort((a,b)=>b.createdAt-a.createdAt)[0]||null;
+ page='create';viewEpoch++;mobilePane='compose';expanded=false;editing=false;raw=false;translationShown=false;
+ persist();render();
+}
+async function facetUseSelectedIdentity(){
+ if(current?.facetPhase!=='plan'||current?.facetPlan?.schema!==SideIdentity.SCHEMA)return;
+ const before=current;await saveFacetIdentity();
+ const record=current?.id===before.id?current:before;
+ for(const person of record.facetPlan.subjects){
+  const id=person.kind==='character'?(record.characterIds||[])[0]:(record.settings?.personaIds||[])[0];
+  if(id)s.facetIdentitySelections[person.kind+':'+id]=record.id;
+ }
+ switchFacetWorkspace('au');say('핵심정보를 저장했어요. AU 생성에서 선택해 사용할 수 있어요.');
+}
 
 /* AU and character-idea inputs with a built-in editable English prompt and single-pass macros. */
 const SideFacet=(()=>{
@@ -207,7 +283,7 @@ function facetPlanPreview(record){
  const person=plan.subjects?.map(row=>'<section class="facet-plan-subject"><h3>'+(row.kind==='user'?'페르소나':'캐릭터')+' · '+escapeText(row.au_name||row.name)+'</h3><p class="hint">'+escapeText(row.name)+(row.name_reason?' · '+escapeText(row.name_reason):'')+'</p><h4>선택한 인물의 핵심 · '+(row.core_identity?.length||0)+'개</h4>'+items(row.core_identity)+(row.retained_constraints?.length?'<h4>명시적으로 유지할 조건</h4>'+items(row.retained_constraints):'')+'<h4>AU에서 살아온 삶</h4>'+items(row.au_life)+'<h4>관계 설계</h4>'+items(row.relationships)+'<details><summary>시트 항목 · 복제하지 않을 요소</summary><h4>시트 구성</h4>'+items(row.sheet_layout)+'<h4>원본에서 그대로 가져오지 않을 요소</h4>'+items(row.avoid_copying)+'</details></section>').join('')||'';
  return '<div class="facet-plan-preview"><div class="facet-plan-scroll"><header><p class="facet-plan-eyebrow">1 / 2 · AU DESIGN</p><h2>AU 설계안 확인</h2><p class="hint">이 단계에서는 최종 프로필을 아직 작성하지 않았어요. 마음에 들면 승인하고, 아니면 새 설계를 받아보세요.</p></header><section class="facet-plan-world"><h3>세계관 · 시대</h3><p>'+escapeText(plan.world)+'</p></section>'+person+'<section class="facet-plan-subject"><h3>전체 관계</h3><p>'+escapeText(plan.relationship||'별도 관계 지정 없음')+'</p><details><summary>세계관 적합성 검토 항목</summary>'+items(plan.genre_checks)+'</details></section></div><div class="facet-plan-actions"><button id="facet-plan-regenerate" class="facet-plan-secondary">'+smallIcon('refresh')+' 설계 다시 생성</button><button id="facet-plan-approve" class="primary">'+smallIcon('next')+' 이 설계로 본문 생성</button></div></div>';
 }
-function facetInputs(){const f=s.facet;const choices=(key,items,value)=>`<div class="facet-choices">${items.map(([v,label])=>`<button data-facet-choice="${key}" data-value="${v}" aria-pressed="${String(value)===v}">${label}</button>`).join('')}</div>`;return `<div class="facet-inputs">${field('변경할 AU 정하기',`<textarea data-facet="au" rows="3" maxlength="12000" placeholder="예: 센티넬 AU, 로판 AU, 헌터 AU">${E(f.au)}</textarea>`)}${field('AU 적용 대상',choices('target',[['character','캐릭터'],['user','유저'],['both','둘 다']],f.target))}${field('변경 정도',choices('degree',[['preserve','원본 기반 재구성'],['rebuild','새로운 인생으로 재구성']],f.degree))}${(s.characterIds||[]).length&&(s.personaIds||[]).length?field('상대와의 관계',choices('relation',[['none','설정 안 함'],['original','원본 유지'],['custom','새로 설정 · 직접 입력'],['new','새로 설정 · AI에게 맡김']],f.relation)):'<p class="hint">캐릭터와 페르소나가 모두 있을 때 관계를 설정할 수 있어요.</p>'}${f.relation==='custom'?field('새 관계 조건',`<textarea data-facet="relationInput" rows="2" maxlength="12000" placeholder="예: 사이가 나쁜 남매, 오해 중인 연인">${E(f.relationInput)}</textarea>`):''}${field('반드시 유의해야 할 점',`<textarea data-facet="cautions" rows="3" maxlength="12000">${E(f.cautions)}</textarea>`)}<details class="facet-prompt"><summary>프롬프트 · 매크로 설정</summary><label class="field"><span>1차 · 추출 지침</span><textarea data-facet="extractionPrompt" rows="6" maxlength="16000">${E(f.extractionPrompt)}</textarea></label><p class="hint">추출 항목과 원본 분리 규칙은 공통 적용돼요. 아래는 2차 AU 작성 지침이에요.</p><p class="hint">{{AU대상}} · {{설정된AU}} · {{변경정도}} · {{관계설정}} · {{상세도}} · {{유의사항}} · {{char}} · {{user}}</p><textarea data-facet="prompt" rows="8" maxlength="32000" placeholder="기본 프롬프트가 제공됩니다. 필요하면 수정해 주세요.">${E(f.prompt)}</textarea><p class="hint">기존 {{유저관계설정}} / {{원본관계반영}} 매크로와 사용자 지침도 계속 지원해요.</p><details><summary>선택지별 치환 문구</summary>${[['preserve','원본 기반 재구성'],['rebuild','새로운 인생으로 재구성'],['relationOn','관계 설정'],['relationOff','설정 안 함'],['originalOn','원본 관계 유지'],['originalOff','새로 설정']].map(([k,n])=>field(n,`<textarea data-facet-phrase="${k}" rows="2" maxlength="4000">${E(f.phrases[k])}</textarea>`)).join('')}</details></details></div>`;}
+function facetInputs(){const f=s.facet;const choices=(key,items,value)=>`<div class="facet-choices">${items.map(([v,label])=>`<button data-facet-choice="${key}" data-value="${v}" aria-pressed="${String(value)===v}">${label}</button>`).join('')}</div>`;return `<div class="facet-inputs">${facetSourcesView()}${field('변경할 AU 정하기',`<textarea data-facet="au" rows="3" maxlength="12000" placeholder="예: 센티넬 AU, 로판 AU, 헌터 AU">${E(f.au)}</textarea>`)}${field('AU 적용 대상',choices('target',[['character','캐릭터'],['user','유저'],['both','둘 다']],f.target))}${field('변경 정도',choices('degree',[['preserve','원본 기반 재구성'],['rebuild','새로운 인생으로 재구성']],f.degree))}${(s.characterIds||[]).length&&(s.personaIds||[]).length?field('상대와의 관계',choices('relation',[['none','설정 안 함'],['original','원본 유지'],['custom','새로 설정 · 직접 입력'],['new','새로 설정 · AI에게 맡김']],f.relation)):'<p class="hint">캐릭터와 페르소나가 모두 있을 때 관계를 설정할 수 있어요.</p>'}${f.relation==='custom'?field('새 관계 조건',`<textarea data-facet="relationInput" rows="2" maxlength="12000" placeholder="예: 사이가 나쁜 남매, 오해 중인 연인">${E(f.relationInput)}</textarea>`):''}${field('반드시 유의해야 할 점',`<textarea data-facet="cautions" rows="3" maxlength="12000">${E(f.cautions)}</textarea>`)}<details class="facet-prompt"><summary>프롬프트 · 매크로 설정</summary><p class="hint">추출 프롬프트는 핵심정보 추출 작업창에서 설정해요.</p><p class="hint">{{AU대상}} · {{설정된AU}} · {{변경정도}} · {{관계설정}} · {{상세도}} · {{유의사항}} · {{char}} · {{user}}</p><textarea data-facet="prompt" rows="8" maxlength="32000" placeholder="기본 프롬프트가 제공됩니다. 필요하면 수정해 주세요.">${E(f.prompt)}</textarea><p class="hint">기존 {{유저관계설정}} / {{원본관계반영}} 매크로와 사용자 지침도 계속 지원해요.</p><details><summary>선택지별 치환 문구</summary>${[['preserve','원본 기반 재구성'],['rebuild','새로운 인생으로 재구성'],['relationOn','관계 설정'],['relationOff','설정 안 함'],['originalOn','원본 관계 유지'],['originalOff','새로 설정']].map(([k,n])=>field(n,`<textarea data-facet-phrase="${k}" rows="2" maxlength="4000">${E(f.phrases[k])}</textarea>`)).join('')}</details></details></div>`;}
 async function saveFacetCharacter(){if(busy||!current||current.mode!=='facet')return;const record=current;let content;try{content=SideFacet.profileForSave(displayRecord().content,record.settings?.facet,'character');}catch(e){say(e.message,true);return;}const name=await askText('새 캐릭터로 저장','캐릭터 이름',(record.characterNames?.[0]||'캐릭터')+' AU','저장');if(!name?.trim())return;busy=true;try{const sourceAvatar=record.characterIds?.[0]||'';await stHost.createCharacterFromProfile({name:name.trim(),description:content,sourceAvatar});say('새 캐릭터로 저장했어요. 캐릭터 목록에서 확인할 수 있어요.');}finally{busy=false;if(alive)render();}}
 async function saveFacetPersona(){if(busy||!current||current.mode!=='facet')return;const record=current;let content;try{content=SideFacet.profileForSave(displayRecord().content,record.settings?.facet,'user');}catch(e){say(e.message,true);return;}const sourceAvatar=String(record.settings?.personaIds?.[0]||'').replace(/^persona:/,'')||stHost.currentPersona();const sourceName=personas.find(p=>p.id===sourceAvatar)?.name||'페르소나';const name=await askText('새 페르소나로 저장','페르소나 이름',sourceName+' AU','저장');if(!name?.trim())return;busy=true;try{await stHost.createPersonaFromProfile({name:name.trim(),description:content,sourceAvatar});say('새 페르소나로 저장했어요. 페르소나 관리에서 확인할 수 있어요.');}finally{busy=false;if(alive)render();}}
 
@@ -225,7 +301,7 @@ function facetIdentityPreview(record){
  const plan=facetIdentityPlan(record),edit=facetIdentityEditors.has(record.id),locked=busy||facetIdentitySaving;
  const tool=(id,label,icon)=>`<button id="${id}" title="${label}" aria-label="${label}" ${locked?'disabled':''}>${smallIcon(icon,id==='favorite'&&record.favorite)}</button>`;
  const relation=SideFacet.clean(record.settings?.facet).relation;
- return `<div class="facet-plan-preview identity-preview"><div class="identity-toolbar">${tool('facet-identity-edit',edit?'편집 닫기':'항목별 편집','edit')}${tool('facet-identity-copy','전체 복사','copy')}${tool('facet-identity-png','PNG 저장','image')}${tool('facet-identity-export','텍스트 저장','download')}${tool('facet-identity-json','JSON 저장','view')}${tool('favorite','즐겨찾기','star')}${tool('organize-current','폴더 · 태그','folder')}<span>${facetIdentityDrafts.has(record.id)?'수정 중 · 승인 시 함께 저장':'보관함에 저장됨'}</span></div><div class="facet-plan-scroll"><header><p class="facet-plan-eyebrow">1 / 2 · IDENTITY</p><h2>가져갈 인물 정보</h2><p class="hint">항목별로 고친 뒤 승인하세요. 다음 단계에는 이 정보와 AU 요청만 전달돼요. 모르는 항목은 비워 두어도 돼요.</p></header>${facetIdentityBody(plan,edit,locked)}${relation!=='original'?`<section class="facet-plan-subject"><h3>관계 설정</h3><p>${E(relation==='custom'?'새로 설정 · '+SideFacet.clean(record.settings?.facet).relationInput:relation==='new'?'새로 설정 · AI에게 맡김':'설정 안 함')}</p></section>`:''}${relation==='original'?`<section class="facet-plan-subject"><h3>유지할 원본 관계</h3>${edit?`<textarea data-identity-field="relationship" rows="3" maxlength="2000" ${locked?'disabled':''}>${E(plan.relationship)}</textarea>`:`<p>${E(plan.relationship||'원본에 명시 없음')}</p>`}</section>`:''}</div><div class="identity-edit-actions" ${edit?'':'hidden'}><button id="facet-identity-cancel" ${locked?'disabled':''}>수정 취소</button><button id="facet-identity-save" ${locked?'disabled':''}>수정 저장</button></div><div class="facet-plan-actions"><button id="facet-plan-regenerate" ${locked?'disabled':''}>${smallIcon('refresh')} 다시 추출</button><button id="facet-plan-approve" class="primary" ${locked?'disabled':''}>${smallIcon('next')} 이 정보로 AU 생성</button></div></div>`;
+ return `<div class="facet-plan-preview identity-preview"><div class="identity-toolbar">${tool('facet-identity-edit',edit?'편집 닫기':'항목별 편집','edit')}${tool('facet-identity-copy','전체 복사','copy')}${tool('facet-identity-png','PNG 저장','image')}${tool('facet-identity-export','텍스트 저장','download')}${tool('facet-identity-json','JSON 저장','view')}${tool('favorite','즐겨찾기','star')}${tool('organize-current','폴더 · 태그','folder')}<span>${facetIdentityDrafts.has(record.id)?'수정 중 · 승인 시 함께 저장':'보관함에 저장됨'}</span></div><div class="facet-plan-scroll"><header><p class="facet-plan-eyebrow">1 / 2 · IDENTITY</p><h2>가져갈 인물 정보</h2><p class="hint">항목별로 고친 뒤 승인하세요. 다음 단계에는 이 정보와 AU 요청만 전달돼요. 모르는 항목은 비워 두어도 돼요.</p></header>${facetIdentityBody(plan,edit,locked)}${relation!=='original'?`<section class="facet-plan-subject"><h3>관계 설정</h3><p>${E(relation==='custom'?'새로 설정 · '+SideFacet.clean(record.settings?.facet).relationInput:relation==='new'?'새로 설정 · AI에게 맡김':'설정 안 함')}</p></section>`:''}${relation==='original'?`<section class="facet-plan-subject"><h3>유지할 원본 관계</h3>${edit?`<textarea data-identity-field="relationship" rows="3" maxlength="2000" ${locked?'disabled':''}>${E(plan.relationship)}</textarea>`:`<p>${E(plan.relationship||'원본에 명시 없음')}</p>`}</section>`:''}</div><div class="identity-edit-actions" ${edit?'':'hidden'}><button id="facet-identity-cancel" ${locked?'disabled':''}>수정 취소</button><button id="facet-identity-save" ${locked?'disabled':''}>수정 저장</button></div><div class="facet-plan-actions"><button id="facet-plan-regenerate" ${locked?'disabled':''}>${smallIcon('refresh')} 다시 추출</button><button id="facet-use-identity" class="primary" ${locked?'disabled':''}>${smallIcon('next')} AU 생성에 사용</button></div></div>`;
 }
 function facetIdentityInput(el){
  if(!el.dataset.identityField||current?.facetPlan?.schema!==SideIdentity.SCHEMA||busy||facetIdentitySaving)return;
