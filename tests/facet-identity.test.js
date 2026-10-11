@@ -52,3 +52,25 @@ test('generation bypasses source collection after review and never uses ST conte
  assert(code.includes("bundle.cid==='st-current'&&options.mode!=='facet'"));
  assert(code.includes('SideIdentity.parse(SideFacet.readPlanJSON(planText),facet.target,facet.relation)'));
 });
+
+test('both AU writer paths enforce canonical names and avoid crude default mannerisms',()=>{
+ const o=options('new');
+ const reviewed=I.parse(identity(),'both','new');
+ const actual=F.writeMessages(o,reviewed,'무협 AU');
+ const sys=actual[0].content;
+ assert(sys.includes('NAME CONSISTENCY:'));
+ assert(sys.includes('Source identity names are reference labels'));
+ assert(sys.includes('relationship sections, dialogue examples, schedules'));
+ assert(sys.includes('CHARACTER PRESENTATION:'));
+ assert(sys.includes('spitting, hawking'));
+ assert(!sys.includes('{{변경정도}}'));
+ assert.equal(actual.length,2);
+ const legacy=F.parsePlan(JSON.stringify({world:'무림',subjects:[
+  {kind:'character',name:'A',au_name:'반사뢰',core_identity:['당당함'],au_life:['무가 출신','전국을 유람','무림의 낭인'],sheet_layout:['기본 정보']},
+  {kind:'user',name:'B',au_name:'반세린',core_identity:['신중함'],au_life:['약학 수련','약방 개원','진료'],sheet_layout:['기본 정보']}
+ ]}),'both');
+ const prior=F.writeMessages(o,legacy,'무협 AU');
+ assert(prior[0].content.includes('NAME CONSISTENCY:'));
+ assert(prior[0].content.includes('CHARACTER PRESENTATION:'));
+ assert.equal(prior.length,2);
+});
