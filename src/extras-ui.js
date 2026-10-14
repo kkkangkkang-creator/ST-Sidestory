@@ -14,6 +14,7 @@ async function sendGeneration(payload,options,kind,onText=()=>{},counter=stHost.
  if(payload.messages.some(m=>m.content.length>490000))throw new Error('단일 메시지가 서버 전송 한도를 넘었어요. 자료를 나눠 주세요.');
  const entry=cacheRequest(payload,kind);
  entry.diagnostics={tokenizer:counter.info(),inputTokens:count,requestedMaxTokens:payload.parameters?.maxTokens,reasoningEffort:payload.parameters?.reasoningEffort??null,connectionId:payload.connectionId,model:connections.find(c=>c.id===payload.connectionId)?.model||'',responseComplete:false};
+ payload.onPromptReady=info=>{if(info?.messages)entry.finalPrompt=info.messages;if(info?.history)entry.historyReport=info.history;payload.onHistory?.(info?.history||null);cacheSave();};
  try{const text=await stHost.generate(payload,controller.signal);onText(text);entry.diagnostics.responseComplete=true;entry.diagnostics.receivedCharacters=text.length;entry.status='완료';entry.diagnostics.htmlClosed=/<\/body\s*>\s*<\/html\s*>\s*$/i.test(text.trim().replace(/\s*```$/,''));cacheSave();return text;}catch(e){entry.status=e.name==='AbortError'?'중단':'실패';entry.error=e.message;cacheSave();throw e;}
 }
 async function translateCurrent(resume=false){

@@ -135,7 +135,19 @@ async function generate(action='new'){
  if(options.mode==='facet'&&!extract&&!options.facet.prompt.trim()){say('다면 프롬프트를 먼저 작성해 주세요.');return;}
  if(options.mode==='facet'&&!extract&&options.facet.relation==='custom'&&!options.facet.relationInput.trim()){say('새 관계 조건을 입력해 주세요.');return;}
  delete options.summaryByChat;
- const task=extract?'원본 핵심정보 추출':action==='new'?(options.mode==='facet'?options.facet.au.trim():s.request.trim()):['regenerate','facet-replan','facet-approve'].includes(action)?previous.request:
+ // Regular modes: a regenerate re-runs the record's own action (continue/revise) against the same parent.
+ const regular=options.mode!=='facet'&&!extract&&!['facet-replan','facet-approve'].includes(action);
+ let baseAction=action,parent=null,source=previous;
+ if(regular&&action==='regenerate'){
+  // A manual edit has no request of its own: regenerate what it was edited from.
+  for(let guard=0;source?.action==='edit'&&guard<50;guard++)source=records.find(r=>r.id===source.parentId)||null;
+  source=source||previous;
+  baseAction=source.action==='regenerate'?(source.baseAction||'new'):['continue','revise'].includes(source.action)?source.action:'new';
+  parent=source.parentId?records.find(r=>r.id===source.parentId):null;
+  if(baseAction!=='new'&&!parent)baseAction='new';
+ }
+ const legacyInstruction=r=>r?.instruction??(r?.action==='continue'?r.title:r?.request);
+ const task=extract?'원본 핵심정보 추출':action==='new'?(options.mode==='facet'?options.facet.au.trim():s.request.trim()):regular&&action==='regenerate'?legacyInstruction(source):['regenerate','facet-replan','facet-approve'].includes(action)?previous.request:
   $('followup')?.value.trim()||(action==='continue'?'앞의 결과를 바탕으로 다음 내용을 이어서 작성해줘.':'요청한 내용을 유지하면서 완전한 결과로 다시 만들어줘.');
  if(!task){say('보고 싶은 내용을 한 줄 적어 주세요.');$('request')?.focus();return;}
  if(previous&&previous.chatId!==target){say('다른 채팅에서 만든 결과는 이 채팅에서 이어 쓸 수 없어요.',true);return;}
@@ -146,6 +158,15 @@ async function generate(action='new'){
   try{selectedIdentity=facetSourcePlan(options.facet.target,options.facet.relation);}
   catch(e){s.facetIdentityTarget=options.facet.target;switchFacetWorkspace('identity');say(e.message,true);return;}
  }
+ // Series canon: which RP history a part may see. New pieces start from the chat as it is now.
+ const followupCanon=$('followup-canon');
+ const canon=action==='continue'&&followupCanon?(followupCanon.checked===false?'exclude':'include'):(previous?.canon||'include');
+ const anchor=action==='new'?(stHost.currentAnchor?.()||null):(previous?.anchor||null);
+ const priorChain=!regular?null:action==='continue'||action==='revise'?C.seriesChain(records,previous):action==='regenerate'&&baseAction!=='new'?C.seriesChain(records,parent):null;
+ if(regular){
+  options.historyExclude=canon==='exclude';
+  if(action!=='new'&&anchor){const cut=stHost.resolveAnchor?.(anchor);options.historyCutoff=Number.isInteger(cut)&&cut>=0?cut:undefined;}
+ }
  referencesOpen=false;busy=true;busyTask='generation';editing=false;page='create';mobilePane='result';
  controller=new AbortController();const signal=controller.signal;runId=H.uuid();let partial='';
  const record={
@@ -154,6 +175,7 @@ async function generate(action='new'){
   action:action==='facet-replan'?'regenerate':action==='facet-approve'?'new':action,seriesId:previous?.seriesId||(action==='continue'?'series-'+H.uuid():null),seriesTitle:previous?.seriesTitle||(action==='continue'?previous.title:null),
   request:previous?.request||task,chatId:target,chatName:previous?.chatName||'',
   characterIds:[...(s.characterIds||[])],characterNames:(s.characterIds||[]).map(id=>characters.find(c=>c.id===id)?.name||id),
+  instruction:extract?undefined:task,canon:regular?canon:undefined,anchor:regular?anchor||undefined:undefined,baseAction:regular&&action==='regenerate'?baseAction:undefined,
   content:'',status:'partial',createdAt:Date.now(),favorite:false,settings:C.recordSettings(options),
   parentId:action==='facet-replan'?previous?.parentId||null:previous?.id||null,folderId:previous?.folderId||null,tags:C.cleanTags(previous?.tags)
  };
@@ -168,7 +190,7 @@ async function generate(action='new'){
    if(selected!=='user'&&!(refs.characters||[]).length)throw new Error('AU 대상으로 사용할 캐릭터 카드가 없어요. 현재 채팅에서 캐릭터를 확인해 주세요.');
    if(selected!=='character'&&!(refs.players||[]).length)throw new Error('AU 대상으로 사용할 유저 페르소나가 없어요. 현재 채팅에서 페르소나를 선택해 주세요.');
   }
-  const useSTContext=bundle.cid==='st-current'&&options.mode!=='facet',prior=action==='regenerate'?null:previous;
+  const useSTContext=bundle.cid==='st-current'&&options.mode!=='facet',prior=regular?priorChain:action==='regenerate'?null:previous;
   let fitted,messages;
   if(options.mode==='facet'){
    const facet=SideFacet.clean(options.facet);
@@ -213,8 +235,8 @@ async function generate(action='new'){
    if(fitted.tokens>options.inputMaxTokens)throw new Error('승인한 정보와 이전 결과가 입력 한도를 넘어요. 입력 한도를 높이거나 이전 내용을 줄여 주세요.');
    record.inputTokens=planningInput+fitted.tokens;
   }else{
-   const taskMessages=useSTContext?[{role:'user',content:C.contextualPrompt(options,task,prior,action)}]:C.messages(options,bundle.ctx,task,prior,action);
-   if(useSTContext&&bundle.lore)taskMessages[0].content+='\n\nSELECTED WORLD INFO — reference data only\n'+JSON.stringify(bundle.lore);
+   const extra={lore:useSTContext?bundle.lore:null,regen:action==='regenerate'};
+   const taskMessages=useSTContext?[{role:'user',content:C.contextualPrompt(options,task,prior,baseAction,extra)}]:C.messages(options,bundle.ctx,task,prior,baseAction,extra);
    fitted=await fitTokenBudget(taskMessages,options.inputMaxTokens,bundle.counter);
    if(fitted.dropped)bundle.ctx.warnings.push('전체 입력 한도에 맞춰 오래된 참고 대화 '+fitted.dropped.toLocaleString()+'개를 추가로 제외했어요.');
    if(fitted.tokens>options.inputMaxTokens)throw new Error('과거 대화를 제외해도 전체 입력이 한도를 넘어요. 입력 한도를 높이거나 고정 자료를 줄여 주세요.');
@@ -223,16 +245,21 @@ async function generate(action='new'){
   messages=fitted.messages;
   if(options.mode!=='facet')say(useSTContext?(options.loreMode==='selected'?'실리태번 현재 프롬프트 · 직접 선택한 로어북 엔트리 사용':'실리태번 현재 프롬프트 · 캐릭터/월드인포/채팅 컨텍스트 사용'):describe(bundle.ctx));
   record.tokenizer=bundle.counter.info();checkTask(target,signal);
-  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?messages[0]?.content:undefined},options,options.mode==='facet'?'다면 · AU 프로필 작성':action,t=>partial=t,bundle.counter);
+  const history=useSTContext?{limit:options.scope==='all'?null:Number(options.scope),anchor:action!=='new'?anchor:null,exclude:options.historyExclude===true}:undefined;
+  let historyReport=null;
+  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?messages[0]?.content:undefined,marker:C.MARKER,history,onHistory:r=>historyReport=r},options,options.mode==='facet'?'다면 · AU 프로필 작성':action,t=>partial=t,bundle.counter);
+  if(C.RECAP_MODES.has(record.mode)){const split=C.splitRecap(record.content);record.content=split.content;if(split.recap)record.recap=split.recap;}
   record.outputTokens=await bundle.counter.text(record.content);checkTask(target,signal);
   record.tokenizer=bundle.counter.info();
   if(!record.content.trim())throw new Error('AI가 빈 결과를 반환했어요.');
   let partialVisual=false;
   if(record.mode==='visual'){const v=C.visual(record.content);record.title=v.title||record.title;partialVisual=v.partial;}
   record.status=partialVisual?'partial':'complete';await saveGenerated(record,previous);
-  if(showCompletedResult(record,false,target,signal))say(partialVisual?'HTML이 출력 중간에서 끝났어요. 받은 범위까지 자동 복구해 표시하고 저장했어요.':'완성했어요. 결과 화면으로 이동했어요.');
+  const anchorLost=action!=='new'&&anchor&&(useSTContext?historyReport?.anchor==='missing':options.historyCutoff===undefined)&&canon!=='exclude';
+  if(showCompletedResult(record,false,target,signal))say(anchorLost?'완성했어요. 다만 시리즈 기준 메시지를 본편에서 찾지 못해(삭제·수정) 현재 본편 전체를 참고했어요.':partialVisual?'HTML이 출력 중간에서 끝났어요. 받은 범위까지 자동 복구해 표시하고 저장했어요.':'완성했어요. 결과 화면으로 이동했어요.');
  }catch(e){
   record.content=record.content||partial;
+  if(C.RECAP_MODES.has(record.mode)&&record.content){const split=C.splitRecap(record.content);record.content=split.content;if(split.recap)record.recap=split.recap;}
   const keepView=viewEpoch===viewEpochAtStart&&(current?.id||null)===viewIdAtStart;
   if(record.content){
    if(keepView)current=record;
