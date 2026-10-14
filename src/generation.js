@@ -147,7 +147,7 @@ async function generate(action='new'){
   if(baseAction!=='new'&&!parent)baseAction='new';
  }
  const legacyInstruction=r=>r?.instruction??(r?.action==='continue'?r.title:r?.request);
- const task=extract?'원본 핵심정보 추출':action==='new'?(options.mode==='facet'?options.facet.au.trim():s.request.trim()):regular&&action==='regenerate'?legacyInstruction(source):['regenerate','facet-replan','facet-approve'].includes(action)?previous.request:
+ const task=extract?'원본 핵심정보 추출':action==='new'?(options.mode==='facet'?options.facet.au.trim():s.request.trim()):regular&&action==='regenerate'?legacyInstruction(source)+(rewriteNote.trim()?'\n\n추가로 반영할 점: '+rewriteNote.trim():''):['regenerate','facet-replan','facet-approve'].includes(action)?previous.request:
   $('followup')?.value.trim()||(action==='continue'?'앞의 결과를 바탕으로 다음 내용을 이어서 작성해줘.':'요청한 내용을 유지하면서 완전한 결과로 다시 만들어줘.');
  if(!task){say('보고 싶은 내용을 한 줄 적어 주세요.');$('request')?.focus();return;}
  if(previous&&previous.chatId!==target){say('다른 채팅에서 만든 결과는 이 채팅에서 이어 쓸 수 없어요.',true);return;}
@@ -250,7 +250,7 @@ async function generate(action='new'){
   const nativeConversation=useSTContext?C.nativeTurns(options,task,prior,baseAction,{lore:bundle.lore,regen:action==='regenerate'}):null;
   const history=useSTContext?{limit:options.scope==='all'?null:Number(options.scope),anchor:action!=='new'?anchor:null,exclude:options.historyExclude===true,append:nativeConversation?.turns||null}:undefined;
   let historyReport=null;
-  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?(nativeConversation?nativeConversation.final:messages[0]?.content):undefined,marker:C.MARKER,history,onHistory:r=>historyReport=r},options,options.mode==='facet'?'다면 · AU 프로필 작성':action,t=>partial=t,bundle.counter);
+  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?(nativeConversation?nativeConversation.final:messages[0]?.content):undefined,marker:C.MARKER,history,presetName:useSTContext?options.stPreset||'':undefined,onHistory:r=>historyReport=r},options,options.mode==='facet'?'다면 · AU 프로필 작성':action,t=>partial=t,bundle.counter);
   record.content=C.stripReasoning(record.content,options.reasoningBlocks);
   if(C.RECAP_MODES.has(record.mode)){const split=C.splitRecap(record.content);record.content=split.content;if(split.recap)record.recap=split.recap;}
   record.outputTokens=await bundle.counter.text(record.content);checkTask(target,signal);

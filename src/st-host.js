@@ -65,6 +65,31 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         if(anchor.sendDate)for(let i=chat.length-1;i>=0;i--)if(same(chat[i]))return i;
         return -1;
     }
+    // ---- RP preset for Side Story generations (current API's preset manager) ----
+    function presetManager() { try { return get().getPresetManager?.() || null; } catch { return null; } }
+    function presetNames() { const pm = presetManager(); try { return pm ? [...new Set(pm.getAllPresets().filter(Boolean))] : []; } catch { return []; } }
+    function currentPresetName() { try { return presetManager()?.getSelectedPresetName() || ''; } catch { return ''; } }
+    /**
+     * Runs fn with the named preset active, then restores the previous one even on failure or abort.
+     * Main-chat sending is disabled meanwhile so an RP turn never goes out with the Side Story preset.
+     */
+    async function withPreset(name, fn) {
+        if (!name) return fn();
+        const pm = presetManager(), c = get();
+        if (!pm) throw new Error('실리태번 프리셋 관리자를 찾지 못했어요. "현재 프리셋 따르기"로 바꿔 주세요.');
+        if (pm.getSelectedPresetName() === name) return fn();
+        const value = pm.findPreset(name);
+        if (value === undefined || value === null) throw new Error(`프리셋 "${name}"을 찾지 못했어요. 이름이 바뀌었거나 다른 API의 프리셋일 수 있어요.`);
+        const previous = pm.getSelectedPreset();
+        c.deactivateSendButtons?.();
+        try {
+            await pm.selectPreset(value);
+            return await fn();
+        } finally {
+            try { await pm.selectPreset(previous); } catch (e) { console.warn('[Side Story] could not restore preset', e); }
+            c.activateSendButtons?.();
+        }
+    }
     // ---- Side Story turn shaping inside ST's own prompt assembly ----
     let pending=null;
     const INTERCEPTOR='sideStoryGenerateInterceptor';
@@ -275,7 +300,7 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
                     const meta={api:String(c.mainApi||''),source:String(cc.chat_completion_source||''),model:String(c.getChatCompletionModel?.()||''),squash:cc.squash_system_messages===true,postProcessing:String(cc.custom_prompt_post_processing||''),prefillChars:String(cc.assistant_prefill||'').length,presetMaxTokens:Number(cc.openai_max_tokens)||null,requestedMaxTokens:payload.parameters?.maxTokens??null,promptReadyEvent:!!readyEvent};
                     pending={marker:payload.marker||'<SIDESTORY>',history:payload.history||null,meta};
                     if(shaping)events.on(readyEvent,ready);
-                    try{return await quietRun();}
+                    try{return await withPreset(payload.presetName||'',quietRun);}
                     finally{
                         if(shaping)events.removeListener?.(readyEvent,ready);
                         payload.onPromptReady?.({messages:pending.finalPrompt||null,history:pending.historyReport||null,meta:pending.meta});
@@ -309,7 +334,7 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         } finally {signal?.removeEventListener('abort',handler);}
     }
     return {
-        request,generate,currentAnchor,resolveAnchor,createChatFromRecord,createCharacterFromProfile,createPersonaFromProfile,currentChatId,currentChat,linked,currentPersona,tokenCounter,connections,
+        request,generate,presetNames,currentPresetName,currentAnchor,resolveAnchor,createChatFromRecord,createCharacterFromProfile,createPersonaFromProfile,currentChatId,currentChat,linked,currentPersona,tokenCounter,connections,
         storage:{async get(){return {sideStory:get().extensionSettings?.st_sidestory||{}};},async patch(value){const c=get();if(!c.extensionSettings||typeof c.saveSettingsDebounced!=='function')throw new Error('실리태번 설정 저장 API를 찾지 못했어요.');c.extensionSettings.st_sidestory=structuredClone(value.sideStory);c.saveSettingsDebounced();}},
         setTimeout:globalThis.setTimeout.bind(globalThis),clearTimeout:globalThis.clearTimeout.bind(globalThis),
         onCleanup(fn){cleanups.push(fn);},cleanup(){for(const fn of cleanups.splice(0))fn();}

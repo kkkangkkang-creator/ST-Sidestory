@@ -169,3 +169,21 @@ test('reasoning blocks: built-ins stay (switchable), custom names add, removal h
  assert.equal(C.stripReasoning('<thinking>a</thinking>본문',cleaned.map(b=>({...b,enabled:false}))),'<thinking>a</thinking>본문');
  assert.equal(C.stripReasoning('<cot>x</cot>본문',cleaned),'본문');
 });
+
+test('RP preset: switched only for the Side Story generation, restored on success and failure, sending blocked meanwhile',async()=>{
+ const log=[];let selected='main';
+ const pm={getAllPresets:()=>['main','side'],getSelectedPresetName:()=>selected,getSelectedPreset:()=>selected,findPreset:n=>['main','side'].includes(n)?n:undefined,selectPreset:async v=>{selected=v;log.push('select:'+v);}};
+ const c={getPresetManager:()=>pm,deactivateSendButtons:()=>log.push('block'),activateSendButtons:()=>log.push('unblock'),extensionSettings:{},
+  generateQuietPrompt:async()=>{log.push('generate@'+selected);return 'ok';}};
+ const host=createSTHost({context:()=>c});
+ assert.deepEqual(host.presetNames(),['main','side']);assert.equal(host.currentPresetName(),'main');
+ assert.equal(await host.generate({useSillyTavernContext:true,quietPrompt:'<SIDESTORY>x',presetName:'side'}),'ok');
+ assert.deepEqual(log,['block','select:side','generate@side','select:main','unblock']);
+ log.length=0;c.generateQuietPrompt=async()=>{log.push('generate@'+selected);throw new Error('boom');};
+ await assert.rejects(host.generate({useSillyTavernContext:true,quietPrompt:'<SIDESTORY>x',presetName:'side'}),/boom/);
+ assert.equal(selected,'main');assert.deepEqual(log,['block','select:side','generate@side','select:main','unblock']);
+ log.length=0;c.generateQuietPrompt=async()=>{log.push('generate@'+selected);return 'ok';};
+ await host.generate({useSillyTavernContext:true,quietPrompt:'<SIDESTORY>x',presetName:''});assert.deepEqual(log,['generate@main'],'no preset means no switching');
+ await assert.rejects(host.generate({useSillyTavernContext:true,quietPrompt:'<SIDESTORY>x',presetName:'gone'}),/찾지 못했어요/);assert.equal(selected,'main');
+ host.cleanup();
+});
