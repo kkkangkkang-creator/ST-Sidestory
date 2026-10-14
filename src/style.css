@@ -1007,3 +1007,9 @@ select{height:36px}
 .inner-options{gap:8px}
 .knobs{gap:6px 16px}
 .knob select{field-sizing:content;max-width:150px}
+.knobs{display:grid;gap:6px 14px;align-items:center}
+.knobs.grid-1{grid-template-columns:1fr}
+.knobs.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.knobs.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.knob{min-width:0}
+.knob select{field-sizing:fixed;width:100%;max-width:none;min-width:0;text-overflow:ellipsis}
