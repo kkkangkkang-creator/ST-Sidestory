@@ -214,3 +214,13 @@ test('ST prompt: chat history dropped by another prompt rewriter is put back rig
  assert.equal(ready.chat.length,4);assert.equal(info.meta.historyRestored,undefined);
  host.cleanup();
 });
+
+test('ST prompt: the context is widened by the extra reply length only while generating',async()=>{
+ const {c}=stContext();c.mainApi='openai';c.chatCompletionSettings={openai_max_context:64000,openai_max_tokens:5000};
+ const host=createSTHost({context:()=>c});let during,info;
+ c.generateQuietPrompt=async()=>{during=c.chatCompletionSettings.openai_max_context;return 'RESULT';};
+ await host.generate({useSillyTavernContext:true,quietPrompt:'<SIDESTORY>\nASK\n</SIDESTORY>',parameters:{maxTokens:30000},onPromptReady:x=>info=x});
+ assert.equal(during,89000);assert.equal(c.chatCompletionSettings.openai_max_context,64000);
+ assert.equal(info.meta.contextWidened,25000);assert.equal(info.meta.contextSize,64000);
+ host.cleanup();
+});

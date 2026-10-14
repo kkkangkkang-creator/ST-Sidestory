@@ -342,8 +342,15 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
                     if(payload.selectedLoreOnly)events.on(event,filter);
                     // Text-completion instruct templates label the quiet turn with quietName: present it as the user.
                     const quietName=payload.asUserTurn!==false?(c.name1||undefined):undefined;
+                    // ST reserves the response length out of the context size. A Side Story asks for a longer reply than the
+                    // RP preset, so without this the preset's own prompts would eat the budget and ST would silently drop
+                    // the persona, the chat history and the request. Widen the context by exactly the extra reply length.
+                    const live=get().chatCompletionSettings,requested=Number(payload.parameters?.maxTokens)||0;
+                    const ctx=Number(live?.openai_max_context),own=Number(live?.openai_max_tokens)||0,extra=String(get().mainApi||'')==='openai'&&Number.isFinite(ctx)&&ctx>0?Math.max(0,requested-own):0;
+                    if(pending)pending.meta={...pending.meta,contextSize:Number.isFinite(ctx)?ctx:null,contextWidened:extra};
+                    if(extra)live.openai_max_context=ctx+extra;
                     try{return await c.generateQuietPrompt({quietPrompt,quietToLoud:false,responseLength:payload.parameters?.maxTokens,removeReasoning:true,...(quietName?{quietName}:{})});}
-                    finally{if(payload.selectedLoreOnly)events.removeListener(event,filter);}
+                    finally{if(extra&&live.openai_max_context===ctx+extra)live.openai_max_context=ctx;if(payload.selectedLoreOnly)events.removeListener(event,filter);}
                 };
             } else {
                 if(typeof c.generateRaw!=='function')throw new Error('generateRaw를 지원하는 실리태번 버전이 필요해요.');

@@ -34,7 +34,7 @@ const SideExtras=(()=>{
   const text=x=>typeof x?.content==='string'?x.content:Array.isArray(x?.content)?x.content.map(p=>p?.text||'').join(''):'';
   const n=v=>Number(v||0).toLocaleString();
   const out=['[Side Story 구조 보고 · 본문 없음]'];
-  out.push(`연결: api=${m.api||'?'} · source=${m.source||'?'} · model=${m.model||'?'} · squash=${m.squash?'켜짐':'꺼짐'} · post-processing=${m.postProcessing||'없음'} · 프리필 ${n(m.prefillChars)}자 · 프리셋 최대 응답 ${m.presetMaxTokens??'?'} · 요청 최대 출력 ${m.requestedMaxTokens??'?'} · PROMPT_READY ${m.promptReadyEvent?'있음':'없음'}`);
+  out.push(`연결: api=${m.api||'?'} · source=${m.source||'?'} · model=${m.model||'?'} · squash=${m.squash?'켜짐':'꺼짐'} · post-processing=${m.postProcessing||'없음'} · 프리필 ${n(m.prefillChars)}자 · 프리셋 최대 응답 ${m.presetMaxTokens??'?'} · 요청 최대 출력 ${m.requestedMaxTokens??'?'} · PROMPT_READY ${m.promptReadyEvent?'있음':'없음'}${m.contextSize?` · 컨텍스트 ${n(m.contextSize)}${m.contextWidened?` (+${n(m.contextWidened)} 이번만)`:''}`:''}`);
   if(h)out.push(`본편 대화: ${h.before}개 → ${h.after}개${h.anchor?' · 기준점 '+h.anchor:''}${h.appended?' · 이전 편 메시지 '+h.appended+'개 추가':''}`);
   out.push(`메시지 ${rows.length}개`);
   let sideAt=-1;
@@ -42,7 +42,7 @@ const SideExtras=(()=>{
   if(sideAt>=0&&sideAt<rows.length-1)out.push(`주의: SIDESTORY 뒤에 메시지 ${rows.length-1-sideAt}개가 더 있어요.`);
   if(rows.length&&sideAt<0)out.push('주의: 최종 프롬프트에서 SIDESTORY를 찾지 못했어요.');
   if(m.historyRestored)out.push('메모: 프롬프트에 본편 대화가 빠져 있어서 받은 대화 '+m.historyRestored+'개를 요청 바로 앞에 다시 넣었어요.');
-  if(m.reinserted)out.push('메모: 프롬프트를 받았을 때 요청이 빠져 있어서(다른 확장이 프롬프트를 다시 짠 것으로 보여요) 마지막 user 메시지로 다시 붙였어요.');
+  if(m.reinserted)out.push('메모: 프롬프트를 받았을 때 요청이 빠져 있어서 마지막 user 메시지로 다시 붙였어요. 컨텍스트 한도가 모자라 ST가 뒤쪽 프롬프트를 버렸을 가능성이 커요.');
   if(shape)out.push(`응답: ${n(shape.chars)}자 · 시작 태그 ${shape.startsWithTag||'없음'} · recap ${shape.recap?'있음':'없음'}${shape.tags?.length?' · 태그: '+shape.tags.slice(0,15).join(', '):''}`);
   return out.join('\n');
  }
