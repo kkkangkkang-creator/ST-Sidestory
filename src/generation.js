@@ -148,7 +148,7 @@ async function generate(action='new'){
  }
  const legacyInstruction=r=>r?.instruction??(r?.action==='continue'?r.title:r?.request);
  const task=extract?'원본 핵심정보 추출':action==='new'?(options.mode==='facet'?options.facet.au.trim():s.request.trim()):regular&&action==='regenerate'?legacyInstruction(source)+(rewriteNote.trim()?'\n\n추가로 반영할 점: '+rewriteNote.trim():''):['regenerate','facet-replan','facet-approve'].includes(action)?previous.request:
-  $('followup')?.value.trim()||(action==='continue'?'앞의 결과를 바탕으로 다음 내용을 이어서 작성해줘.':'요청한 내용을 유지하면서 완전한 결과로 다시 만들어줘.');
+  followupText(action)||(action==='continue'?'앞의 결과를 바탕으로 다음 내용을 이어서 작성해줘.':'요청한 내용을 유지하면서 완전한 결과로 다시 만들어줘.');
  if(!task){say('보고 싶은 내용을 한 줄 적어 주세요.');$('request')?.focus();return;}
  if(previous&&previous.chatId!==target){say('다른 채팅에서 만든 결과는 이 채팅에서 이어 쓸 수 없어요.',true);return;}
  if(options.mode==='think'){say('이전 생각하기 기록은 읽기와 저장만 지원해요.');return;}
@@ -159,8 +159,7 @@ async function generate(action='new'){
   catch(e){s.facetIdentityTarget=options.facet.target;switchFacetWorkspace('identity');say(e.message,true);return;}
  }
  // Series canon: which RP history a part may see. New pieces start from the chat as it is now.
- const followupCanon=$('followup-canon');
- const canon=action==='continue'&&followupCanon?(followupCanon.checked===false?'exclude':'include'):(previous?.canon||'include');
+ const canon=action==='continue'?(continueCanonValue()?'include':'exclude'):(previous?.canon||'include');
  const anchor=action==='new'?(stHost.currentAnchor?.()||null):(previous?.anchor||null);
  const priorChain=!regular?null:action==='continue'||action==='revise'?C.seriesChain(records,previous):action==='regenerate'&&baseAction!=='new'?C.seriesChain(records,parent):null;
  if(regular){
