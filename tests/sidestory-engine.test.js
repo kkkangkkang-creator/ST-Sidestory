@@ -199,3 +199,18 @@ test('ST prompt: a request dropped by another prompt rewriter is put back as the
  assert.equal(info.meta.reinserted,true);
  host.cleanup();
 });
+
+test('ST prompt: chat history dropped by another prompt rewriter is put back right before the request',async()=>{
+ const {c,handlers}=stContext();c.chat=[{name:'A',mes:'첫 번째 대사가 여기에 길게 들어가 있어요',send_date:'d0'},{name:'유저',mes:'두 번째 대사도 충분히 길게 적어 둡니다',is_user:true,send_date:'d1'}];
+ const host=createSTHost({context:()=>c});let ready,info;
+ c.generateQuietPrompt=async a=>{const chat=c.chat.map(m=>({...m}));await globalThis.sideStoryGenerateInterceptor(chat,0,()=>{},'quiet');ready={chat:[{role:'system',content:'MAIN'},{role:'system',content:'POST\n'+a.quietPrompt}],dryRun:false};handlers.get('ready')(ready);return 'RESULT';};
+ const quiet='<SIDESTORY>\nASK\n</SIDESTORY>';
+ await host.generate({useSillyTavernContext:true,quietPrompt:quiet,parameters:{maxTokens:10},history:{limit:null,anchor:null,exclude:false},onPromptReady:x=>info=x});
+ assert.deepEqual(ready.chat.map(m=>m.role),['system','system','assistant','user','user']);
+ assert.equal(ready.chat.at(-1).content,quiet);assert.equal(info.meta.historyRestored,2);
+ // When the history is present, nothing is added.
+ c.generateQuietPrompt=async a=>{const chat=c.chat.map(m=>({...m}));await globalThis.sideStoryGenerateInterceptor(chat,0,()=>{},'quiet');ready={chat:[{role:'system',content:'MAIN'},...chat.map(m=>({role:m.is_user?'user':'assistant',content:m.mes})),{role:'system',content:a.quietPrompt}],dryRun:false};handlers.get('ready')(ready);return 'RESULT';};
+ await host.generate({useSillyTavernContext:true,quietPrompt:quiet,parameters:{maxTokens:10},history:{limit:null,anchor:null,exclude:false},onPromptReady:x=>info=x});
+ assert.equal(ready.chat.length,4);assert.equal(info.meta.historyRestored,undefined);
+ host.cleanup();
+});

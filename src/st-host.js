@@ -126,14 +126,38 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
             report.appended=plan.append.length;
         }
         pending.historyReport=report;
+        // Kept so the history can be put back if another prompt rewriter drops it (see shapePrompt).
+        const names=new Set(chat.map(m=>m?.name).filter(Boolean)),prefix=names.size>2;
+        pending.historyTurns=chat.map(m=>({role:m?.is_user?'user':'assistant',content:(prefix&&m?.name?m.name+': ':'')+String(m?.mes??'')})).filter(m=>m.content.trim());
     }
     const textOf=m=>typeof m?.content==='string'?m.content:Array.isArray(m?.content)?m.content.map(p=>p?.text||'').join(''):'';
     /**
      * CHAT_COMPLETION_PROMPT_READY: the quiet prompt arrives as a system message (possibly squashed into the
      * preset's post-history text). Split it out and make it the final user turn, as if the user sent it.
      */
+    /** Lines of plain dialogue from the last turns, used to tell whether the history reached the prompt at all. */
+    function historyProbes(turns){
+        const out=[];
+        for(const m of turns.slice(-3)){
+            const lines=String(m.content).split('\n').map(x=>x.trim()).filter(x=>x.length>=12&&!/[<>\[\]{}|]/.test(x)).sort((a,b)=>b.length-a.length);
+            if(lines[0])out.push(lines[0].slice(0,40));
+        }
+        return out;
+    }
+    function restoreHistory(chat){
+        const turns=pending?.historyTurns;
+        if(!Array.isArray(turns)||!turns.length)return;
+        const probes=historyProbes(turns);
+        if(!probes.length||chat.some(m=>probes.some(p=>textOf(m).includes(p))))return;
+        let at=chat.length;for(let i=chat.length-1;i>=0;i--)if(textOf(chat[i]).includes(pending.marker)){at=i;break;}
+        chat.splice(at,0,...turns.map(m=>({role:m.role,content:m.content})));
+        pending.meta={...pending.meta,historyRestored:turns.length};
+    }
     function shapePrompt(data) {
         if(!pending||data?.dryRun||!Array.isArray(data?.chat))return;
+        try{shapeTurn(data);}finally{if(Array.isArray(data.chat)){restoreHistory(data.chat);pending.finalPrompt=structuredClone(data.chat);}}
+    }
+    function shapeTurn(data) {
         const chat=data.chat,marker=pending.marker;
         let index=-1;for(let i=chat.length-1;i>=0;i--)if(textOf(chat[i]).includes(marker)){index=i;break;}
         // Another PROMPT_READY listener may rebuild the prompt and drop the quiet prompt; put the request back as the last user turn.
