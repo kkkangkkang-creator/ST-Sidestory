@@ -19,12 +19,15 @@ function switchWorkSection(inner){
  if(s.mode!=='facet'&&inner===isInner()){page='create';viewEpoch++;render();return;}
  switchWorkMode(inner?lastInnerMode:lastOuterMode);
 }
-function innerOptions(){
+function userName(){const p=personas.find(p=>s.personaIds?.includes(p.id)||s.personaIds?.includes('persona:'+p.id));return p?H.character(p).name:'{{user}}';}
+function knobSelect(label,key,items){return `<label class="knob" title="${label}"><span>${label}</span><select data-setting="${key}" aria-label="${label}">${items.map(x=>opt(x[0],x[1],s[key])).join('')}</select></label>`;}
+function innerKnobs(){
  const honesty=[['character','캐릭터답게'],['honest','솔직하게']];
- if(s.mode==='speak')return `<div class="inner-options">${field('말하는 방식',select('innerHonesty',honesty))}<label class="check"><input type="checkbox" data-setting="showInnerThoughts" ${s.showInnerThoughts?'checked':''}>속마음 함께 보기</label><p class="hint">켜면 각 응답 카드 아래에 접어 둔 <b>속마음</b>을 함께 만들어요. 필요한 항목만 펼쳐 볼 수 있어요.</p></div>`;
- if(s.mode==='write')return `<div class="inner-options">${field('쓰는 방식',select('writeHonesty',honesty))}</div>`;
+ if(s.mode==='speak')return knobSelect('묻는 사람','speakAsker',[['user',userName()],['outsider','이야기 속 제3자'],['author','작가']])+knobSelect('말하는 방식','innerHonesty',honesty);
+ if(s.mode==='write')return knobSelect('쓰는 방식','writeHonesty',honesty);
  return '';
 }
+function innerOptions(){return '';}
 function inputHistoryMatchesCurrent(r){return C.matchesCharacter(r,s.characterIds,chatId);}
 
 

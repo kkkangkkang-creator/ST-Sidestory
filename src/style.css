@@ -1003,3 +1003,7 @@ select{height:36px}
 .entry.box .entry-meta{margin-top:auto}
 .knob>span{white-space:nowrap;flex:none}
 .knob select{width:auto;min-width:0}
+.speak-asker{font-style:normal;font-size:11px;color:var(--faint);margin-left:10px;letter-spacing:0;font-weight:500}
+.inner-options{gap:8px}
+.knobs{gap:6px 16px}
+.knob select{field-sizing:content;max-width:150px}
