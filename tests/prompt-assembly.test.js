@@ -77,3 +77,18 @@ test('speak: the asker line fills {{sideasker}} once, follows the setting, and i
  assert(!C.sideStory(C.settings({mode:'story',speakAsker:'author'}),plan,{native:true}).includes('The questions come from'));
  assert.equal(C.settings({speakAsker:'nobody'}).speakAsker,'user');
 });
+
+test('lore keyword activation: constant always, keywords with secondary logic, regex keys, no-key entries kept',()=>{
+ const text='세레나가 항구 도시에 도착했다. The Tower loomed.';
+ assert(C.loreActive({constant:true,key:['없음']},text));
+ assert(C.loreActive({key:['항구']},text));
+ assert(!C.loreActive({key:['사막']},text));
+ assert(C.loreActive({key:['tower']},text));
+ assert(!C.loreActive({key:['tower'],caseSensitive:true},text));
+ assert(C.loreActive({key:['/Tow(er|n)/']},text));
+ assert(C.loreActive({key:['항구'],selective:true,keysecondary:['세레나'],selectiveLogic:0},text));
+ assert(!C.loreActive({key:['항구'],selective:true,keysecondary:['세레나'],selectiveLogic:2},text));
+ assert(C.loreActive({key:[]},text));
+ const s=C.settings({});assert.equal(s.loreKeywordScan,true);assert.equal(s.loreScanDepth,3);
+ assert.equal(C.settings({loreScanDepth:0}).loreScanDepth,0);
+});

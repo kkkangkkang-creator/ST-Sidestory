@@ -4,6 +4,7 @@ async function collectLore(options,chat,signal){
    const entries=await get('/lorebooks/'+encodeURIComponent(lid)+'/entries',signal);
    return {name:lorebooks.find(l=>l.id===lid)?.name||lid,entries:entries
     .filter(e=>options.loreEntries[lid]?options.loreEntries[lid].includes(e.id):(overrides[e.id]?.enabled??H.truth(e.enabled)))
+    .filter(e=>typeof options.loreScan!=='string'||C.loreActive(e,options.loreScan))
     .map(e=>({name:e.comment||e.name||'',content:e.content}))};
   }));
 }
@@ -165,6 +166,11 @@ async function generate(action='new'){
  if(regular){
   options.historyExclude=canon==='exclude';
   if(action!=='new'&&anchor){const cut=stHost.resolveAnchor?.(anchor);options.historyCutoff=Number.isInteger(cut)&&cut>=0?cut:undefined;}
+ }
+ // Directly chosen lore: constant entries always, keyword entries only when the request or the last few messages mention them.
+ if(options.loreMode==='selected'&&options.loreKeywordScan){
+  const depth=options.loreScanDepth,recent=priorChain&&['continue','revise'].includes(action)?priorChain.slice(-depth).map(r=>C.plainText(r)):(()=>{const rows=(SillyTavern.getContext().chat||[]).filter(m=>m&&!m.is_system);const cut=Number.isInteger(options.historyCutoff)?options.historyCutoff:null;return (cut===null?rows:rows.slice(0,cut+1)).slice(-depth).map(m=>String(m.mes||''));})();
+  options.loreScan=[task,...recent].join('\n');
  }
  referencesOpen=false;busy=true;busyTask='generation';editing=false;page='create';mobilePane='result';
  controller=new AbortController();const signal=controller.signal;runId=H.uuid();let partial='';
