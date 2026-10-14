@@ -34,7 +34,7 @@ const SideExtras=(()=>{
   const n=v=>Number(v||0).toLocaleString();
   const out=['[Side Story 구조 보고 · 본문 없음]'];
   out.push(`연결: api=${m.api||'?'} · source=${m.source||'?'} · model=${m.model||'?'} · squash=${m.squash?'켜짐':'꺼짐'} · post-processing=${m.postProcessing||'없음'} · 프리필 ${n(m.prefillChars)}자 · 프리셋 최대 응답 ${m.presetMaxTokens??'?'} · 요청 최대 출력 ${m.requestedMaxTokens??'?'} · PROMPT_READY ${m.promptReadyEvent?'있음':'없음'}`);
-  if(h)out.push(`본편 대화: ${h.before}개 → ${h.after}개${h.anchor?' · 기준점 '+h.anchor:''}`);
+  if(h)out.push(`본편 대화: ${h.before}개 → ${h.after}개${h.anchor?' · 기준점 '+h.anchor:''}${h.appended?' · 이전 편 메시지 '+h.appended+'개 추가':''}`);
   out.push(`메시지 ${rows.length}개`);
   let sideAt=-1;
   rows.forEach((row,i)=>{const body=text(row),has=body.includes('<SIDESTORY>');if(has)sideAt=i;const tags=structureTags(body).filter(x=>x!=='sidestory');out.push(`#${i+1} ${row?.role||'?'} · ${n(body.length)}자${has?' · ★SIDESTORY':''}${tags.length?' · 태그: '+tags.slice(0,15).join(', '):''}`);});

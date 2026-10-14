@@ -70,7 +70,8 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
     const INTERCEPTOR='sideStoryGenerateInterceptor';
     /**
      * generate_interceptor: trims ST's chat copy before the preset assembles history.
-     * plan = {limit:number|null, anchor:{index,sendDate,name}|null, exclude:boolean}
+     * plan = {limit:number|null, anchor:{index,sendDate,name}|null, exclude:boolean, append:[{role,content}]}
+     * append: earlier Side Story parts, added after the (trimmed) RP history as real chat messages.
      */
     function interceptHistory(chat,type) {
         const plan=pending?.history;
@@ -90,7 +91,16 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         }
         const set=new Set(keep);
         for(let k=chat.length-1;k>=0;k--)if(!set.has(k))chat.splice(k,1);
-        report.after=chat.length;pending.historyReport=report;
+        report.after=chat.length;
+        if(Array.isArray(plan.append)&&plan.append.length){
+            const c=get(),date=new Date().toISOString();
+            for(const m of plan.append){
+                const user=m.role==='user';
+                chat.push({name:user?String(c.name1||'User'):String(m.name||c.name2||'Assistant'),is_user:user,is_system:false,send_date:date,mes:String(m.content??''),extra:{sideStory:true}});
+            }
+            report.appended=plan.append.length;
+        }
+        pending.historyReport=report;
     }
     const textOf=m=>typeof m?.content==='string'?m.content:Array.isArray(m?.content)?m.content.map(p=>p?.text||'').join(''):'';
     /**

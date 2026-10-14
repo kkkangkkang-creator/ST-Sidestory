@@ -133,3 +133,25 @@ test('structure report carries roles, sizes and tag names but no prompt text',()
  assert(!/SECRET/.test(report));assert(report.includes('#2 user'));assert(report.includes('★SIDESTORY'));assert(report.includes('태그: rules'));
  assert(report.includes('SIDESTORY 뒤에 메시지 1개'));assert(report.includes('source=claude'));
 });
+
+test('continuation on the ST path: earlier parts become chat history, final turn is a short request',async()=>{
+ const chain=[part('a',{action:'new',instruction:'싸운 이야기',content:'싸웠다.\n\n문이 닫혔다.'}),part('b',{action:'continue',parentId:'a',instruction:'그 다음 날',content:'아침이 왔다.'})];
+ const conv=C.nativeTurns(C.settings({mode:'story'}),'화해까지',chain,'continue');
+ assert.deepEqual(conv.turns.map(t=>t.role),['user','assistant','user','assistant']);
+ assert.equal(conv.turns[0].content,'OOC: Side Story request (part 1) — 싸운 이야기');assert.equal(conv.turns[3].content,'아침이 왔다.');
+ assert(!conv.final.includes('<previous_part'));assert(!conv.final.includes('싸웠다.'),'parts are not repeated in the request');
+ assert(conv.final.includes('<resume_point>\n아침이 왔다.'));assert(conv.final.includes('Part 3 of an ongoing side story'));
+ assert.equal(C.nativeTurns(C.settings({mode:'story'}),'X',null,'new'),null);
+ const rev=C.nativeTurns(C.settings({mode:'story'}),'고쳐줘',chain,'revise');
+ assert.equal(rev.turns.at(-1).content,'아침이 왔다.');assert(rev.final.includes('The draft to revise is the last message of the chat history'));
+
+ const {c}=stContext();c.name2='A';const host=createSTHost({context:()=>c});
+ let seen;c.generateQuietPrompt=async()=>{const chat=c.chat.filter(m=>!m.is_system).map(m=>({...m}));await globalThis.sideStoryGenerateInterceptor(chat,0,()=>{},'quiet');seen=chat;return 'ok';};
+ let info;
+ await host.generate({useSillyTavernContext:true,quietPrompt:conv.final,history:{limit:2,anchor:null,exclude:false,append:conv.turns},onPromptReady:x=>info=x});
+ assert.deepEqual(seen.map(m=>[!!m.is_user,m.mes]),[[true,'m4'],[false,'m5'],[true,conv.turns[0].content],[false,'싸웠다.\n\n문이 닫혔다.'],[true,conv.turns[2].content],[false,'아침이 왔다.']]);
+ assert.equal(seen[3].name,'A');assert.equal(seen[2].name,'유저');assert.equal(info.history.appended,4);
+ await host.generate({useSillyTavernContext:true,quietPrompt:conv.final,history:{exclude:true,append:conv.turns}});
+ assert.equal(seen.length,4,'series only when the RP is excluded');
+ host.cleanup();
+});
