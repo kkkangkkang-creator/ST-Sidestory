@@ -41,6 +41,7 @@ const SideExtras=(()=>{
   rows.forEach((row,i)=>{const body=text(row),has=body.includes('<SIDESTORY>');if(has)sideAt=i;const tags=structureTags(body).filter(x=>x!=='sidestory');out.push(`#${i+1} ${row?.role||'?'} · ${n(body.length)}자${has?' · ★SIDESTORY':''}${tags.length?' · 태그: '+tags.slice(0,15).join(', '):''}`);});
   if(sideAt>=0&&sideAt<rows.length-1)out.push(`주의: SIDESTORY 뒤에 메시지 ${rows.length-1-sideAt}개가 더 있어요.`);
   if(rows.length&&sideAt<0)out.push('주의: 최종 프롬프트에서 SIDESTORY를 찾지 못했어요.');
+  if(m.historyRestored)out.push('메모: 프롬프트에 본편 대화가 빠져 있어서 받은 대화 '+m.historyRestored+'개를 요청 바로 앞에 다시 넣었어요.');
   if(m.reinserted)out.push('메모: 프롬프트를 받았을 때 요청이 빠져 있어서(다른 확장이 프롬프트를 다시 짠 것으로 보여요) 마지막 user 메시지로 다시 붙였어요.');
   if(shape)out.push(`응답: ${n(shape.chars)}자 · 시작 태그 ${shape.startsWithTag||'없음'} · recap ${shape.recap?'있음':'없음'}${shape.tags?.length?' · 태그: '+shape.tags.slice(0,15).join(', '):''}`);
   return out.join('\n');
