@@ -423,3 +423,83 @@
 .window .reader>.series-navigation>summary svg{width:12px;height:12px;flex:none}
 .window .reader>.series-navigation[open]>summary svg{transform:rotate(90deg)}
 .window .reader>.series-navigation>.series-list{max-height: min(180px,25dvh);margin-top:4px;overflow:auto}
+
+/* ===== 0.12 mobile layer =====
+   Under 850px the window is a phone app: compact header, bottom navigation, a fixed action bar on results,
+   and bottom sheets for tools and dialogs. Desktop keeps its layout and gains the result action bar. */
+.mobile-nav{display:none}
+.result-actions{position:sticky;bottom:0;z-index:3;display:flex;justify-content:center;gap:8px;margin:18px auto 0;padding:10px 0;width:fit-content;max-width:100%}
+.result-actions button{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:8px 16px;border-radius:999px;background:var(--paper);box-shadow:0 6px 18px var(--shadow)}
+.result-actions button.primary{background:var(--accent);color:var(--paper)}
+.result-actions svg{width:16px;height:16px}
+.reasoning-list{list-style:none;margin:10px 0 12px;padding:0;display:grid;gap:6px}
+.reasoning-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.reasoning-list .check{margin:0;flex:1}
+.reasoning-list code{font-size:13px;color:var(--accent)}
+.reasoning-list small{margin-left:6px;padding:1px 7px;border-radius:999px;background:var(--tint);color:var(--accent);font-size:11px}
+.reasoning-list .icon-only{min-height:36px;padding:6px 9px;border:0;background:transparent}
+.reasoning-add{display:flex;gap:8px}.reasoning-add input{flex:1}.reasoning-add button{flex:none}
+.reader-tools[data-intent] .tool-group,.reader-tools[data-intent] .reading-options,.reader-tools[data-intent] .png-inner-option{display:none!important}
+.reader-tools[data-intent=continue] #revise,.reader-tools[data-intent=revise] #continue,.reader-tools[data-intent=revise] .continuation-modes,.reader-tools[data-intent=revise] .hint:has(+.continuation-modes){display:none!important}
+.reader-tools[data-intent=revise] label.check:has(#followup-canon){display:none!important}
+.reader-tools[data-intent] .followup>summary{pointer-events:none}
+.reader-tools[data-intent=continue] #continue,.reader-tools[data-intent=revise] #revise{background:var(--accent);color:var(--paper);border-color:var(--accent);font-weight:650}
+.followup label.check small{white-space:nowrap}
+
+@media(max-width:850px){
+ .app .window{border:0}
+ /* header: section tabs + theme/close only */
+ .app .topbar{padding:6px 10px 6px 12px;gap:8px;min-height:48px;padding-top:max(6px,env(safe-area-inset-top))}
+ .app .topbar .tagline,.app .window .topbar .top-actions button[data-page]{display:none}
+ .app .work-folder-tabs{gap:4px}
+ .app .work-folder-tab{min-height:36px;padding:6px 12px;font-size:14px}
+ .app .top-actions{gap:2px}
+ .app .top-actions button{min-width:40px;min-height:40px;font-size:18px}
+ .app .task-indicator{order:3;flex-basis:100%;font-size:12px}
+ .app .mobile-switch,.app .footer{display:none!important}
+ /* bottom navigation */
+ .app .mobile-nav{display:grid;grid-template-columns:repeat(5,1fr);flex:none;border-top:1px solid var(--line);background:var(--paper);padding:4px 4px max(4px,env(safe-area-inset-bottom))}
+ .app .mobile-nav-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px;padding:4px 0;border:0;border-radius:12px;background:transparent;color:var(--muted);font-size:11px;line-height:1.2}
+ .app .mobile-nav-item svg{width:20px;height:20px}
+ .app .mobile-nav-item[aria-current=page]{color:var(--accent);background:var(--tint);font-weight:650}
+ .app .mobile-nav-item[data-empty=true]{opacity:.45}
+ /* composer */
+ .app .composer{padding:16px 16px 0}
+ .app .generate-area{padding:10px 16px 12px;bottom:0}
+ .app .generate-area small{display:none}
+ /* reader heading: title on its own line, controls scroll sideways */
+ .app .reader{padding:14px 14px 0}
+ .app .reader-bar{flex-wrap:wrap;gap:8px;margin-bottom:12px}
+ .app .reader-heading{flex:1 1 100%;min-width:0}
+ .app .reader-bar h2{font-size:18px;line-height:1.35;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+ .app #expand,.app .reader-tools>summary{display:none!important}
+ .app .reader-bar>:not(.reader-heading){flex:none}
+ .app .result-bottom{display:none!important}
+ .app .result-actions{align-self:stretch;width:calc(100% + 28px);max-width:none;margin:12px -14px 0;padding:10px 14px calc(10px);justify-content:stretch;background:linear-gradient(transparent,var(--bg) 30%)}
+ .app .result-actions button{flex:1 1 0;min-width:0;justify-content:center;gap:4px;padding:6px 4px;min-height:44px;box-shadow:none;border-radius:12px;white-space:nowrap;font-size:13px}
+ .app .result-actions button.primary{flex-grow:1.4}
+ /* tools as a bottom sheet */
+ .app .reader-tools[open]::before{content:"";position:fixed;inset:0;background:#10201866;z-index:40}
+ .app .reader-tools[open]>.reader-tools-panel{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-width:none;max-height:82dvh;overflow:auto;z-index:41;margin:0;border-radius:18px 18px 0 0;padding:10px 16px max(16px,env(safe-area-inset-bottom));box-shadow:0 -12px 40px var(--shadow)}
+ .app .reader-tools[open]>.reader-tools-panel::before{content:"";display:block;width:40px;height:4px;margin:2px auto 10px;border-radius:4px;background:var(--line)}
+ .app .reader-tools-panel .tool-group{grid-template-columns:repeat(4,1fr)}
+ .app .reader-tools-panel .result-tool{min-height:64px}
+ .app .followup textarea{min-height:110px}
+ .app .continuation-modes{display:flex;flex-wrap:wrap;gap:6px}
+ .app .continuation-modes button{flex:1 1 auto;min-height:40px}
+ .app .reader-tools-panel .row button{min-height:48px}
+ /* dialogs become full sheets */
+ .app .reference-overlay{padding:0;align-items:flex-end}
+ .app .reference-dialog{width:100%;max-height:100%;height:100%;min-height:0;border-radius:0;padding-bottom:env(safe-area-inset-bottom)}
+ .app .side-dialog-overlay{align-items:flex-end;padding:0}
+ .app .side-dialog-overlay>*{width:100%;max-width:none;border-radius:18px 18px 0 0;padding-bottom:max(16px,env(safe-area-inset-bottom))}
+ /* toasts sit above the bottom navigation */
+ .side-toast{top:calc(56px + env(safe-area-inset-top))!important;max-width:calc(100vw - 32px);font-size:13px}
+ /* archive / settings breathing room */
+ .app .archive-page,.app .preferences{padding-bottom:24px}
+ .app .compact-shelf{grid-template-columns:1fr!important}
+}
+/* Phones: 16px controls so iOS does not zoom into fields. */
+@media(max-width:850px) and (pointer:coarse){
+ .app input:not([type=checkbox]):not([type=range]),.app select,.app textarea{font-size:16px}
+}

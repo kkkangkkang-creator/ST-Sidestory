@@ -155,3 +155,17 @@ test('continuation on the ST path: earlier parts become chat history, final turn
  assert.equal(seen.length,4,'series only when the RP is excluded');
  host.cleanup();
 });
+
+test('reasoning blocks: built-ins stay (switchable), custom names add, removal handles prefill and truncation',()=>{
+ const blocks=C.settings({}).reasoningBlocks;
+ assert.deepEqual(blocks.map(b=>[b.name,b.enabled,b.builtin]),[['thinking',true,true],['think',true,true]]);
+ const cleaned=C.cleanReasoningBlocks([{name:'think',enabled:false},{name:'<cot>'},{name:'bad name'},{name:'COT'}]);
+ assert.deepEqual(cleaned.map(b=>[b.name,b.enabled,b.builtin]),[['thinking',true,true],['think',false,true],['cot',true,false]],'built-ins cannot be removed; duplicates and invalid names drop');
+ assert.equal(C.stripReasoning('<thinking>계획</thinking>\n\n본문',blocks),'본문');
+ assert.equal(C.stripReasoning('프리필로 시작된 추론\n</thinking>\n본문',blocks),'본문');
+ assert.equal(C.stripReasoning('본문\n<think>잘린 추론',blocks),'본문');
+ assert.equal(C.stripReasoning('<Thinking mode="x">a</Thinking>본문<think>b</think>끝',blocks),'본문끝');
+ assert.equal(C.stripReasoning('<thinking>only</thinking>',blocks),'<thinking>only</thinking>','never empties a result');
+ assert.equal(C.stripReasoning('<thinking>a</thinking>본문',cleaned.map(b=>({...b,enabled:false}))),'<thinking>a</thinking>본문');
+ assert.equal(C.stripReasoning('<cot>x</cot>본문',cleaned),'본문');
+});
