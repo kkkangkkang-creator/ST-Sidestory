@@ -5,7 +5,7 @@
   "optional": [],
   "js": "index.js",
   "author": "Byulchaek contributors",
-  "version": "0.14.3",
+  "version": "0.14.4",
   "auto_update": false,
   "hooks": {
     "enable": "onEnable",
