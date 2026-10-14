@@ -48,8 +48,73 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         return {id:currentChatId(),name:String(c.getCurrentChatId?.()??c.chatId??'현재 채팅'),mode:'roleplay',connectionId:'st-current',characterIds:linked(),personaId:currentPersona(),metadata:{summary,activeLorebookIds:lore}};
     }
     function messages() {
-        return (get().chat||[]).filter(m=>!m.is_system).map((m,i)=>({id:String(i),role:m.is_user?'user':m.name||'assistant',content:String(m.mes||''),characterId:m.original_avatar||'',extra:{hiddenFromAI:!!m.extra?.hiddenFromAI,hiddenFromUser:!!m.extra?.hiddenFromUser}}));
+        // ids are indexes in the full ST chat so series anchors can address them.
+        return (get().chat||[]).map((m,i)=>[m,i]).filter(([m])=>!m.is_system).map(([m,i])=>({id:String(i),role:m.is_user?'user':m.name||'assistant',content:String(m.mes||''),characterId:m.original_avatar||'',extra:{hiddenFromAI:!!m.extra?.hiddenFromAI,hiddenFromUser:!!m.extra?.hiddenFromUser}}));
     }
+    /** The latest message visible to the model: the canon point a new side story starts from. */
+    function currentAnchor() {
+        const chat=get().chat||[];
+        for(let i=chat.length-1;i>=0;i--)if(!chat[i]?.is_system)return {index:i,sendDate:String(chat[i].send_date??''),name:String(chat[i].name??'')};
+        return null;
+    }
+    /** Finds an anchor again after edits/deletions shifted indexes. -1 when it no longer exists. */
+    function resolveAnchor(anchor) {
+        if(!anchor||!Number.isInteger(anchor.index))return -1;
+        const chat=get().chat||[],same=m=>m&&String(m.send_date??'')===anchor.sendDate&&String(m.name??'')===anchor.name;
+        if(same(chat[anchor.index]))return anchor.index;
+        if(anchor.sendDate)for(let i=chat.length-1;i>=0;i--)if(same(chat[i]))return i;
+        return -1;
+    }
+    // ---- Side Story turn shaping inside ST's own prompt assembly ----
+    let pending=null;
+    const INTERCEPTOR='sideStoryGenerateInterceptor';
+    /**
+     * generate_interceptor: trims ST's chat copy before the preset assembles history.
+     * plan = {limit:number|null, anchor:{index,sendDate,name}|null, exclude:boolean}
+     */
+    function interceptHistory(chat,type) {
+        const plan=pending?.history;
+        if(!plan||type!=='quiet'||!Array.isArray(chat))return;
+        const report={before:chat.length,anchor:null};
+        let keep=chat.map((_,k)=>k);
+        if(plan.exclude)keep=[];
+        else {
+            if(plan.anchor){
+                const all=get().chat||[],visible=[];
+                all.forEach((m,i)=>{if(!m?.is_system||Array.isArray(m?.extra?.tool_invocations))visible.push(i);});
+                const cut=resolveAnchor(plan.anchor);
+                report.anchor=cut>=0&&visible.length===chat.length?'applied':'missing';
+                if(report.anchor==='applied')keep=keep.filter(k=>visible[k]<=cut);
+            }
+            if(Number.isInteger(plan.limit)&&plan.limit>=0)keep=keep.slice(Math.max(0,keep.length-plan.limit));
+        }
+        const set=new Set(keep);
+        for(let k=chat.length-1;k>=0;k--)if(!set.has(k))chat.splice(k,1);
+        report.after=chat.length;pending.historyReport=report;
+    }
+    const textOf=m=>typeof m?.content==='string'?m.content:Array.isArray(m?.content)?m.content.map(p=>p?.text||'').join(''):'';
+    /**
+     * CHAT_COMPLETION_PROMPT_READY: the quiet prompt arrives as a system message (possibly squashed into the
+     * preset's post-history text). Split it out and make it the final user turn, as if the user sent it.
+     */
+    function shapePrompt(data) {
+        if(!pending||data?.dryRun||!Array.isArray(data?.chat))return;
+        const chat=data.chat,marker=pending.marker;
+        let index=-1;for(let i=chat.length-1;i>=0;i--)if(textOf(chat[i]).includes(marker)){index=i;break;}
+        if(index<0){pending.finalPrompt=structuredClone(chat);return;}
+        const message=chat[index];
+        if(typeof message.content==='string'){
+            const at=message.content.indexOf(marker),before=message.content.slice(0,at).trim(),turn=message.content.slice(at);
+            chat.splice(index,1);
+            if(before)chat.splice(index,0,{...message,content:before});
+            chat.push({role:'user',content:turn});
+        } else {
+            chat.splice(index,1);chat.push({...message,role:'user'});
+        }
+        pending.finalPrompt=structuredClone(chat);
+    }
+    globalThis[INTERCEPTOR]=async(chat,contextSize,abort,type)=>{try{interceptHistory(chat,type);}catch(e){console.warn('[Side Story] history interceptor failed',e);}};
+    cleanups.push(()=>{if(globalThis[INTERCEPTOR])delete globalThis[INTERCEPTOR];});
     async function entries(name, signal) {
         check(signal);
         let data;
@@ -192,12 +257,27 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
                 if(typeof c.generateQuietPrompt!=='function')throw new Error('현재 실리태번 프롬프트를 사용하려면 generateQuietPrompt를 지원하는 실리태번 버전이 필요해요.');
                 const quietPrompt=String(payload.quietPrompt||payload.messages?.map(m=>m.content).filter(Boolean).join('\n\n')||'');
                 send=async()=>{
+                    const readyEvent=c.eventTypes?.CHAT_COMPLETION_PROMPT_READY,events=c.eventSource;
+                    const ready=data=>{try{shapePrompt(data);}catch(e){console.warn('[Side Story] prompt shaping failed',e);}};
+                    const shaping=payload.asUserTurn!==false&&readyEvent&&typeof events?.on==='function';
+                    pending={marker:payload.marker||'<SIDESTORY>',history:payload.history||null};
+                    if(shaping)events.on(readyEvent,ready);
+                    try{return await quietRun();}
+                    finally{
+                        if(shaping)events.removeListener?.(readyEvent,ready);
+                        payload.onPromptReady?.({messages:pending.finalPrompt||null,history:pending.historyReport||null});
+                        pending=null;
+                    }
+                };
+                const quietRun=async()=>{
                     // Only the local scan arrays are changed; stored books and entry objects stay untouched.
                     const event=c.eventTypes?.WORLDINFO_ENTRIES_LOADED,events=c.eventSource;
                     const filter=rows=>{for(const key of ['globalLore','characterLore','chatLore','personaLore'])if(Array.isArray(rows[key]))rows[key].splice(0);};
                     if(payload.selectedLoreOnly&&(!event||typeof events?.on!=='function'||typeof events?.removeListener!=='function'))throw new Error('엔트리 직접 선택은 WORLDINFO_ENTRIES_LOADED를 지원하는 ST 버전이 필요해요. ST를 업데이트하거나 ST 설정 따르기를 선택해 주세요.');
                     if(payload.selectedLoreOnly)events.on(event,filter);
-                    try{return await c.generateQuietPrompt({quietPrompt,quietToLoud:false,responseLength:payload.parameters?.maxTokens,removeReasoning:true});}
+                    // Text-completion instruct templates label the quiet turn with quietName: present it as the user.
+                    const quietName=payload.asUserTurn!==false?(c.name1||undefined):undefined;
+                    try{return await c.generateQuietPrompt({quietPrompt,quietToLoud:false,responseLength:payload.parameters?.maxTokens,removeReasoning:true,...(quietName?{quietName}:{})});}
                     finally{if(payload.selectedLoreOnly)events.removeListener(event,filter);}
                 };
             } else {
@@ -216,7 +296,7 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         } finally {signal?.removeEventListener('abort',handler);}
     }
     return {
-        request,generate,createChatFromRecord,createCharacterFromProfile,createPersonaFromProfile,currentChatId,currentChat,linked,currentPersona,tokenCounter,connections,
+        request,generate,currentAnchor,resolveAnchor,createChatFromRecord,createCharacterFromProfile,createPersonaFromProfile,currentChatId,currentChat,linked,currentPersona,tokenCounter,connections,
         storage:{async get(){return {sideStory:get().extensionSettings?.st_sidestory||{}};},async patch(value){const c=get();if(!c.extensionSettings||typeof c.saveSettingsDebounced!=='function')throw new Error('실리태번 설정 저장 API를 찾지 못했어요.');c.extensionSettings.st_sidestory=structuredClone(value.sideStory);c.saveSettingsDebounced();}},
         setTimeout:globalThis.setTimeout.bind(globalThis),clearTimeout:globalThis.clearTimeout.bind(globalThis),
         onCleanup(fn){cleanups.push(fn);},cleanup(){for(const fn of cleanups.splice(0))fn();}
