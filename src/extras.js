@@ -25,7 +25,25 @@ const SideExtras=(()=>{
  }
  function splitItem(item,budget){const parts=[];let rest=item.text,part=0;while(tokens(rest)+20>budget){let low=1,high=rest.length;while(low<high){const mid=Math.ceil((low+high)/2);if(tokens(rest.slice(0,mid))+20<=budget)low=mid;else high=mid-1;}let cut=low,floor=Math.floor(cut*.55),sample=rest.slice(floor,cut);const matches=[...sample.matchAll(/(?:\n+|[.!?。！？]+\s*|\s+)/g)],boundary=matches.at(-1);if(boundary)cut=floor+boundary.index+boundary[0].length;parts.push({id:String(item.id)+':'+part++,sourceId:item.id,text:rest.slice(0,cut)});rest=rest.slice(cut);}parts.push({id:part?String(item.id)+':'+part:item.id,...(part?{sourceId:item.id}:{}),text:rest});return parts;}
  function batches(items,budget){if(budget<=20)throw new Error('번역 입력 한도가 너무 작아요. 한도를 높여 주세요.');const out=[];let group=[],used=0;for(const original of items)for(const item of splitItem(original,budget)){const cost=tokens(item.text)+20;if(group.length&&used+cost>budget){out.push(group);group=[];used=0;}group.push(item);used+=cost;}if(group.length)out.push(group);return out;}
- return {tokens,TRANSLATE,TRANSLATE_CONTRACT,FONTS,extractHTML,applyHTML,parseTranslation,translationPlan,batches};
+ /** Unique tag names in a text, without any of its content. */
+ function structureTags(text){const seen=new Set();for(const m of String(text??'').matchAll(/<\/?([a-zA-Z_][\w:-]{0,40})(?:\s[^<>]{0,200})?\/?>/g)){seen.add(m[1].toLowerCase());if(seen.size>=40)break;}return [...seen];}
+ /** A content-free report of what was sent: roles, sizes, tag names and connection facts. Safe to share. */
+ function structureReport(entry){
+  const rows=Array.isArray(entry?.finalPrompt)?entry.finalPrompt:[],m=entry?.connectionMeta||{},h=entry?.historyReport,shape=entry?.responseShape;
+  const text=x=>typeof x?.content==='string'?x.content:Array.isArray(x?.content)?x.content.map(p=>p?.text||'').join(''):'';
+  const n=v=>Number(v||0).toLocaleString();
+  const out=['[Side Story 구조 보고 · 본문 없음]'];
+  out.push(`연결: api=${m.api||'?'} · source=${m.source||'?'} · model=${m.model||'?'} · squash=${m.squash?'켜짐':'꺼짐'} · post-processing=${m.postProcessing||'없음'} · 프리필 ${n(m.prefillChars)}자 · 프리셋 최대 응답 ${m.presetMaxTokens??'?'} · 요청 최대 출력 ${m.requestedMaxTokens??'?'} · PROMPT_READY ${m.promptReadyEvent?'있음':'없음'}`);
+  if(h)out.push(`본편 대화: ${h.before}개 → ${h.after}개${h.anchor?' · 기준점 '+h.anchor:''}`);
+  out.push(`메시지 ${rows.length}개`);
+  let sideAt=-1;
+  rows.forEach((row,i)=>{const body=text(row),has=body.includes('<SIDESTORY>');if(has)sideAt=i;const tags=structureTags(body).filter(x=>x!=='sidestory');out.push(`#${i+1} ${row?.role||'?'} · ${n(body.length)}자${has?' · ★SIDESTORY':''}${tags.length?' · 태그: '+tags.slice(0,15).join(', '):''}`);});
+  if(sideAt>=0&&sideAt<rows.length-1)out.push(`주의: SIDESTORY 뒤에 메시지 ${rows.length-1-sideAt}개가 더 있어요.`);
+  if(rows.length&&sideAt<0)out.push('주의: 최종 프롬프트에서 SIDESTORY를 찾지 못했어요.');
+  if(shape)out.push(`응답: ${n(shape.chars)}자 · 시작 태그 ${shape.startsWithTag||'없음'} · recap ${shape.recap?'있음':'없음'}${shape.tags?.length?' · 태그: '+shape.tags.slice(0,15).join(', '):''}`);
+  return out.join('\n');
+ }
+ return {structureTags,structureReport,tokens,TRANSLATE,TRANSLATE_CONTRACT,FONTS,extractHTML,applyHTML,parseTranslation,translationPlan,batches};
 })();
 if(typeof module!=='undefined')module.exports=SideExtras;
 
