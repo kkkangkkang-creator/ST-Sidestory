@@ -54,7 +54,7 @@ function composeScreen(){const facet=s.mode==='facet',inner=isInner();
  const body=facet?`${facetWorkspaceTabs()}${s.facetWorkspace==='identity'?facetExtractInputs():facetInputs()}`:regular;
  const rows=facet&&s.facetWorkspace==='au'?'':composeRows();
  const label=facet?(s.facetWorkspace==='identity'?'핵심정보 추출':'AU 생성하기'):'생성하기';
- const resume=current&&!busy?`<button class="mini resume" data-pane="result">${icon('book')}<span>${E(threadTitle(current))}</span></button>`:'';
+ const resume='';
  return `<div class="screen compose">${bar(`${BTN_ICON('close','이야기 목록으로','data-page="stories"')}<h1 class="bar-title">새로 쓰기</h1><span class="bar-note">${E(chatName())}</span>`,'tight')}<main class="scroll" data-ui-scroll="compose"><div class="compose-body">${chips}${body}${rows}${resume}</div></main><div class="dock">${busy?`<button id="stop" class="btn quiet wide">${icon('stop')}<span>${busyLabel()} 중 · 중단</span></button>`:`<button id="generate" class="btn primary wide" ${loading?'disabled':''}>${label}</button>`}</div></div>`;}
 function composeRows(){const names=[...characters.filter(c=>s.characterIds?.includes(c.id)).map(c=>H.character(c).name),...personas.filter(p=>s.personaIds?.includes(p.id)||s.personaIds?.includes('persona:'+p.id)).map(c=>H.character(c).name)];
  const scope=scopeLabel(),ref=[...names,scope,s.loreMode==='selected'?`로어북 직접 ${s.loreIds.length}권`:'로어북 ST 설정'].filter(Boolean).join(' · ');

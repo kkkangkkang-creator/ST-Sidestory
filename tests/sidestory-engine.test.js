@@ -187,3 +187,15 @@ test('RP preset: switched only for the Side Story generation, restored on succes
  await assert.rejects(host.generate({useSillyTavernContext:true,quietPrompt:'<SIDESTORY>x',presetName:'gone'}),/찾지 못했어요/);assert.equal(selected,'main');
  host.cleanup();
 });
+
+test('ST prompt: a request dropped by another prompt rewriter is put back as the last user turn, and our listener runs last',async()=>{
+ const {c,handlers}=stContext();let last=false;c.eventSource.makeLast=(k,f)=>{last=true;handlers.set(k,f);};
+ const host=createSTHost({context:()=>c});let ready,info;
+ c.generateQuietPrompt=async()=>{ready={chat:[{role:'system',content:'MAIN'},{role:'system',content:'HISTORY'},{role:'system',content:'POST'}],dryRun:false};handlers.get('ready')(ready);return 'RESULT';};
+ const quiet='<SIDESTORY>\nASK\n</SIDESTORY>';
+ await host.generate({useSillyTavernContext:true,quietPrompt:quiet,parameters:{maxTokens:10},onPromptReady:x=>info=x});
+ assert.equal(last,true);
+ assert.deepEqual(ready.chat.at(-1),{role:'user',content:quiet});
+ assert.equal(info.meta.reinserted,true);
+ host.cleanup();
+});
