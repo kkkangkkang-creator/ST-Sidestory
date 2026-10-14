@@ -124,3 +124,12 @@ test('ST prompt: squashed quiet prompt is split into a final user turn; history 
  }
  host.cleanup();assert.equal(globalThis.sideStoryGenerateInterceptor,undefined);
 });
+
+test('structure report carries roles, sizes and tag names but no prompt text',()=>{
+ const X=new Function(read('extras.js')+';return SideExtras;')();
+ const report=X.structureReport({connectionMeta:{api:'openai',source:'claude',model:'m',squash:true,prefillChars:12,promptReadyEvent:true},
+  finalPrompt:[{role:'system',content:'<rules>SECRET_TEXT</rules>'},{role:'user',content:'<SIDESTORY>\nSECRET_REQUEST'},{role:'assistant',content:'SECRET_PREFILL'}],
+  responseShape:{chars:10,tags:['thinking'],recap:false,startsWithTag:'thinking'}});
+ assert(!/SECRET/.test(report));assert(report.includes('#2 user'));assert(report.includes('★SIDESTORY'));assert(report.includes('태그: rules'));
+ assert(report.includes('SIDESTORY 뒤에 메시지 1개'));assert(report.includes('source=claude'));
+});

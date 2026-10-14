@@ -260,12 +260,15 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
                     const readyEvent=c.eventTypes?.CHAT_COMPLETION_PROMPT_READY,events=c.eventSource;
                     const ready=data=>{try{shapePrompt(data);}catch(e){console.warn('[Side Story] prompt shaping failed',e);}};
                     const shaping=payload.asUserTurn!==false&&readyEvent&&typeof events?.on==='function';
-                    pending={marker:payload.marker||'<SIDESTORY>',history:payload.history||null};
+                    const cc=c.chatCompletionSettings||{};
+                    // Connection facts only (no prompt text): used by the content-free structure report.
+                    const meta={api:String(c.mainApi||''),source:String(cc.chat_completion_source||''),model:String(c.getChatCompletionModel?.()||''),squash:cc.squash_system_messages===true,postProcessing:String(cc.custom_prompt_post_processing||''),prefillChars:String(cc.assistant_prefill||'').length,presetMaxTokens:Number(cc.openai_max_tokens)||null,requestedMaxTokens:payload.parameters?.maxTokens??null,promptReadyEvent:!!readyEvent};
+                    pending={marker:payload.marker||'<SIDESTORY>',history:payload.history||null,meta};
                     if(shaping)events.on(readyEvent,ready);
                     try{return await quietRun();}
                     finally{
                         if(shaping)events.removeListener?.(readyEvent,ready);
-                        payload.onPromptReady?.({messages:pending.finalPrompt||null,history:pending.historyReport||null});
+                        payload.onPromptReady?.({messages:pending.finalPrompt||null,history:pending.historyReport||null,meta:pending.meta});
                         pending=null;
                     }
                 };
