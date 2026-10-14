@@ -225,7 +225,7 @@ button.row:hover{background:color-mix(in srgb,var(--ink) 3%,transparent)}
 .continue-opts{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
 .continue-opts::-webkit-scrollbar{display:none}
 .continue-row{display:flex;align-items:flex-end;gap:8px}
-#followup{flex:1;min-height:46px;max-height:160px;height:46px;resize:none;border-radius:16px;padding:12px 14px;font-size:16px;line-height:1.4}
+#followup{flex:1;min-height:44px;max-height:132px;height:44px;resize:none;border-radius:15px;padding:11px 14px;font-size:14.5px;line-height:1.45}
 .continue .send{width:46px;height:46px;border-radius:15px}
 .branch-note{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 4px;font-size:12.5px;color:var(--faint)}
 .thread-side{display:none}
@@ -353,7 +353,7 @@ button.row:hover{background:color-mix(in srgb,var(--ink) 3%,transparent)}
 .side-dialog-field{display:flex;flex-direction:column;gap:6px}
 .side-dialog-field span{font-size:13px;font-weight:600}
 .side-dialog>footer{display:flex;gap:8px;padding:0 20px 18px}
-.side-dialog>footer button{flex:1;height:48px;border-radius:13px;font-weight:600;border:1px solid var(--line)}
+.side-dialog>footer button{flex:1;height:48px;display:flex;align-items:center;justify-content:center;border-radius:13px;font-weight:600;border:1px solid var(--line)}
 .side-dialog>footer .primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .side-dialog>footer .danger-button{background:var(--danger);border-color:var(--danger);color:#fff}
 .side-toast{position:absolute;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);z-index:70;display:flex;align-items:center;gap:10px;max-width:min(92vw,520px);padding:11px 16px;border-radius:14px;background:var(--ink);color:var(--ground);font-size:14px;box-shadow:0 10px 30px var(--shadow);animation:fade .15s}
@@ -670,3 +670,6 @@ button.row:hover{background:color-mix(in srgb,var(--ink) 3%,transparent)}
 .thread-title{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .thread-title .fav{vertical-align:-2px;margin-right:4px}
 .part .note{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+.continue{gap:6px}
+.continue .mini{height:28px;font-size:12px}
