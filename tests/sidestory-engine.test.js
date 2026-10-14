@@ -138,7 +138,7 @@ test('continuation on the ST path: earlier parts become chat history, final turn
  const chain=[part('a',{action:'new',instruction:'싸운 이야기',content:'싸웠다.\n\n문이 닫혔다.'}),part('b',{action:'continue',parentId:'a',instruction:'그 다음 날',content:'아침이 왔다.'})];
  const conv=C.nativeTurns(C.settings({mode:'story'}),'화해까지',chain,'continue');
  assert.deepEqual(conv.turns.map(t=>t.role),['user','assistant','user','assistant']);
- assert.equal(conv.turns[0].content,'OOC: Side Story request (part 1) — 싸운 이야기');assert.equal(conv.turns[3].content,'아침이 왔다.');
+ assert.equal(conv.turns[0].content,'OOC: Side Story — part 1');assert.equal(conv.turns[3].content,'아침이 왔다.');
  assert(!conv.final.includes('<previous_part'));assert(!conv.final.includes('싸웠다.'),'parts are not repeated in the request');
  assert(conv.final.includes('<resume_point>\n아침이 왔다.'));assert(conv.final.includes('Part 3 of an ongoing side story'));
  assert.equal(C.nativeTurns(C.settings({mode:'story'}),'X',null,'new'),null);
