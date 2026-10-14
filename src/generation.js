@@ -245,9 +245,12 @@ async function generate(action='new'){
   messages=fitted.messages;
   if(options.mode!=='facet')say(useSTContext?(options.loreMode==='selected'?'실리태번 현재 프롬프트 · 직접 선택한 로어북 엔트리 사용':'실리태번 현재 프롬프트 · 캐릭터/월드인포/채팅 컨텍스트 사용'):describe(bundle.ctx));
   record.tokenizer=bundle.counter.info();checkTask(target,signal);
-  const history=useSTContext?{limit:options.scope==='all'?null:Number(options.scope),anchor:action!=='new'?anchor:null,exclude:options.historyExclude===true}:undefined;
+  // ST path, continue/revise: earlier parts join the chat history itself (after the RP up to the series anchor),
+  // and the final user turn is only the short request.
+  const nativeConversation=useSTContext?C.nativeTurns(options,task,prior,baseAction,{lore:bundle.lore,regen:action==='regenerate'}):null;
+  const history=useSTContext?{limit:options.scope==='all'?null:Number(options.scope),anchor:action!=='new'?anchor:null,exclude:options.historyExclude===true,append:nativeConversation?.turns||null}:undefined;
   let historyReport=null;
-  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?messages[0]?.content:undefined,marker:C.MARKER,history,onHistory:r=>historyReport=r},options,options.mode==='facet'?'다면 · AU 프로필 작성':action,t=>partial=t,bundle.counter);
+  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?(nativeConversation?nativeConversation.final:messages[0]?.content):undefined,marker:C.MARKER,history,onHistory:r=>historyReport=r},options,options.mode==='facet'?'다면 · AU 프로필 작성':action,t=>partial=t,bundle.counter);
   if(C.RECAP_MODES.has(record.mode)){const split=C.splitRecap(record.content);record.content=split.content;if(split.recap)record.recap=split.recap;}
   record.outputTokens=await bundle.counter.text(record.content);checkTask(target,signal);
   record.tokenizer=bundle.counter.info();
