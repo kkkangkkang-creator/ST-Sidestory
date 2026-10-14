@@ -1013,3 +1013,6 @@ select{height:36px}
 .knobs.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .knob{min-width:0}
 .knob select{field-sizing:fixed;width:100%;max-width:none;min-width:0;text-overflow:ellipsis}
+.app[data-view=compose] .nav{display:grid}
+.app[data-view=compose] .dock{padding-bottom:8px}
+.bar .bar-note{padding-right:4px}

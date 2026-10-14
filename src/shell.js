@@ -21,7 +21,7 @@ const onWide=()=>{if(opened&&page==='create'&&mobilePane==='result'){if(sheet===
 const BTN_ICON=(name,label,attrs='',cls='')=>`<button class="icon-btn ${cls}" aria-label="${E(label)}" title="${E(label)}" ${attrs}>${icon(name)}</button>`;
 function bar(inner,cls=''){return `<header class="bar ${cls}">${inner}</header>`;}
 function barText(title,sub=''){return `<div class="bar-text"><h1>${E(title)}</h1>${sub?`<p>${E(sub)}</p>`:''}</div>`;}
-function closeButton(){return BTN_ICON('close','Side Story 닫기','id="close"');}
+function closeButton(cls=''){return BTN_ICON('close','Side Story 닫기','id="close"',cls);}
 
 /* ---------- shell */
 function render(){if(!alive)return;const fu=$('followup');if(fu)followDraft=fu.value;const rn=$('rewrite-note');if(rn)rewriteDraft=rn.value;const viewKey=renderPositionKey(),oldScroll=snapshotRenderPosition(viewKey);disposeReading();syncOverlay();
@@ -56,7 +56,7 @@ function composeScreen(){const facet=s.mode==='facet',inner=isInner();
  const rows=facet&&s.facetWorkspace==='au'?'':composeRows();
  const label=facet?(s.facetWorkspace==='identity'?'핵심정보 추출':'AU 생성하기'):'생성하기';
  const resume='';
- return `<div class="screen compose">${bar(`${BTN_ICON('close','이야기 목록으로','data-page="stories"')}<h1 class="bar-title">새로 쓰기</h1><span class="bar-note">${E(chatName())}</span>`,'tight')}<main class="scroll" data-ui-scroll="compose"><div class="compose-body">${chips}${body}${rows}${resume}</div></main><div class="dock">${busy?`<button id="stop" class="btn quiet wide">${icon('stop')}<span>${busyLabel()} 중 · 중단</span></button>`:`<button id="generate" class="btn primary wide" ${loading?'disabled':''}>${label}</button>`}</div></div>`;}
+ return `<div class="screen compose">${bar(`${BTN_ICON('back','보관함으로','data-page="stories"')}<h1 class="bar-title">새로 쓰기</h1><span class="bar-note">${E(chatName())}</span>${closeButton('ring')}`,'tight')}<main class="scroll" data-ui-scroll="compose"><div class="compose-body">${chips}${body}${rows}${resume}</div></main><div class="dock">${busy?`<button id="stop" class="btn quiet wide">${icon('stop')}<span>${busyLabel()} 중 · 중단</span></button>`:`<button id="generate" class="btn primary wide" ${loading?'disabled':''}>${label}</button>`}</div></div>`;}
 function composeRows(){const names=[...characters.filter(c=>s.characterIds?.includes(c.id)).map(c=>H.character(c).name),...personas.filter(p=>s.personaIds?.includes(p.id)||s.personaIds?.includes('persona:'+p.id)).map(c=>H.character(c).name)];
  const scope=scopeLabel(),ref=[...names,scope,s.loreMode==='selected'?`로어북 직접 ${s.loreIds.length}권`:'로어북 ST 설정'].filter(Boolean).join(' · ');
  const currentPreset=stHost.currentPresetName?.()||'';
@@ -72,7 +72,7 @@ function threadScreen(){
  const line=partLine(current),at=Math.max(0,line.findIndex(r=>r.id===current.id)),series=line.length>1,last=at===line.length-1;
  const sub=[kindLabel(current.mode),series?`${line.length}편 중 ${at+1}편`:'',current.status==='partial'?'미완료':''].filter(Boolean).join(' · ');
  const tr=current.mode==='facet'||plan?'':`<button id="translate" class="icon-btn ring${translationShown?' active on':''}" aria-pressed="${translationShown}" aria-label="${current.translationView?(translationShown?'원문 보기':'번역 보기'):'번역하기'}" title="${current.translationView?(translationShown?'원문 보기':'번역 보기'):'번역하기'}" ${busy&&!current.translationView?'disabled':''}>${icon('translate')}</button>`;
- const head=bar(`${BTN_ICON('back','이야기 목록으로','data-page="stories"')}${barText(threadTitle(current),sub)}${tr}${plan?'':BTN_ICON('more','이 편에서 할 수 있는 일','data-sheet="more"','narrow-only ring')}`,'tight line');
+ const head=bar(`${BTN_ICON('back','이야기 목록으로','data-page="stories"')}${barText(threadTitle(current),sub)}${tr}${plan?'':BTN_ICON('more','이 편에서 할 수 있는 일','data-sheet="more"','narrow-only ring')}${closeButton('ring')}`,'tight line');
  if(plan)return `<div class="screen thread-view">${head}<main class="scroll facet-plan-scroll" id="reader" data-ui-scroll="thread">${facetPlanPreview(current)}</main></div>`;
  const parts=line.map((r,i)=>r.id===current.id?currentPart(r,i,series):`<section class="part"><span class="mark">${i+1}</span><button class="peek" data-open="${E(r.id)}"><span class="note"><b>${i+1}편</b> ${E(r.instruction||r.title)}</span><span class="collapsed">${E(snippet(r,180))}</span></button></section>`).join('');
  const writing=busy&&pending&&pending.thread===threadKey(current)?`<section class="part writing"><span class="mark on"><span class="pulse"></span></span><p class="note"><b>${pending.action==='continue'?`${line.length+1}편`:'다시 쓰는 중'}</b> ${E(pending.label||'')}</p><div class="writing-box"><span>${busyLabel()} 중이에요. 다른 화면을 봐도 계속돼요.</span><button id="stop-reader" class="btn small quiet">중단</button></div></section>`:'';
