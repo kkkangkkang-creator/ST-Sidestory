@@ -132,12 +132,17 @@ button.row:hover{background:color-mix(in srgb,var(--ink) 3%,transparent)}
 .avatar{width:34px;height:34px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex:none}
 .who b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .who small{display:block;color:var(--faint);margin-top:-1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nav{grid-area:nav;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line);background:var(--surface);padding-bottom:env(safe-area-inset-bottom)}
+.nav{grid-area:nav;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--line);background:var(--surface);padding-bottom:env(safe-area-inset-bottom)}
 .nav button{height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;color:var(--faint)}
 .nav button .side-icon{width:22px;height:22px}
 .nav button[aria-current=page]{color:var(--ink);font-weight:600}
 .nav button[aria-current=page] .side-icon{color:var(--accent)}
-.app[data-view=thread] .nav,.app[data-view=compose] .nav{display:none}
+.app[data-view=compose] .nav{display:none}
+.app[data-view=thread] .nav button{height:52px}
+.nav .nav-new{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;color:var(--accent);font-weight:600}
+.nav .nav-new .plus{width:30px;height:30px;border-radius:10px;background:var(--accent);color:var(--on-accent);display:flex;align-items:center;justify-content:center}
+.nav .nav-new .plus .side-icon{width:18px;height:18px}
+.app[data-view=thread] .nav .nav-new .plus{width:26px;height:26px}
 
 /* ---------- 이야기 */
 .list{background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
@@ -164,7 +169,7 @@ button.row:hover{background:color-mix(in srgb,var(--ink) 3%,transparent)}
 .pending-card small{display:block;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .busy-pill{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:10px;padding:6px 6px 6px 14px;border-radius:999px;background:var(--ink);color:var(--ground);font-size:13px;box-shadow:0 6px 20px var(--shadow);white-space:nowrap}
 .busy-pill button{height:30px;padding:0 12px;border-radius:999px;background:color-mix(in srgb,var(--ground) 18%,transparent);font-size:12.5px}
-.app[data-view=stories] .busy-pill{bottom:80px}
+.app[data-view=stories] .busy-pill{bottom:16px}
 
 /* ---------- 새로 쓰기 */
 .compose-body{display:flex;flex-direction:column;gap:18px;padding:6px 16px 24px;max-width:680px;margin:0 auto;width:100%}
@@ -634,7 +639,9 @@ button.row:hover{background:color-mix(in srgb,var(--ink) 3%,transparent)}
  .side-scroll .thread.on .thread-title{color:var(--accent)}
  .nav{border-right:1px solid var(--line)}
  .nav button{height:54px}
- .app[data-view=thread] .nav,.app[data-view=compose] .nav{display:grid}
+ .app[data-view=compose] .nav{display:grid}
+ .nav{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .nav .nav-new{display:none}
  .screen.stories>.bar,.screen.stories .list,.screen.stories .section-label,.screen.stories .empty{display:none}
  .screen.stories .desk-welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;height:100%;padding:40px;text-align:center;color:var(--muted)}
  .screen.stories .launcher{width:min(560px,calc(100% - 48px));margin:0 auto 32px}

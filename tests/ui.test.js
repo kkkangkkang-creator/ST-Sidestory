@@ -21,8 +21,8 @@ test('full UI with ST adapter: initialize, select references, generate, archive,
  const root=document.querySelector('#st-sidestory-root').shadowRoot,$=s=>root.querySelector(s);
  const click=selector=>{assert($(selector),'missing '+selector);$(selector).dispatchEvent(new window.Event('click',{bubbles:true}));};
  const idle=()=>!$('.busy-pill')&&!$('#stop-reader')&&!$('#stop');
- const openWand=async()=>{document.querySelector('#side-story-wand').dispatchEvent(new window.Event('click',{bubbles:true}));await wait(()=>$('.launcher'));};
- const openCompose=async()=>{click('.launcher');await wait(()=>$('#generate')&&!$('#generate').disabled);};
+ const openWand=async()=>{document.querySelector('#side-story-wand').dispatchEvent(new window.Event('click',{bubbles:true}));await wait(()=>$('.nav-new'));};
+ const openCompose=async()=>{click('.nav-new');await wait(()=>$('#generate')&&!$('#generate').disabled);};
  const wait=async fn=>{for(let i=0;i<150;i++){if(fn())return;await new Promise(r=>setTimeout(r,10));}throw new Error('timeout: '+($('#notice')?.textContent||''));};
  await openWand();await openCompose();assert.equal($('#launcher'),null);click('#open-references');assert.equal($('#chat'),null);assert.equal($('[data-pick=characterIds]'),null);assert($('.sheet').textContent.includes('a.png'));click('#close-references-done');assert.equal($('.sheet'),null);
  click('#open-references');click('[data-sheet=lore]');click('[data-lore-mode=selected]');await wait(()=>$('[data-lore-entry]'));
