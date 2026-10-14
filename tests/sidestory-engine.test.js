@@ -19,8 +19,8 @@ test('continuation turn: earlier parts with their own requests, full previous pa
  const s=C.settings({mode:'story'});
  const text=C.contextualPrompt(s,'그 다음날 아침',chain,'continue');
  assert(text.startsWith('<SIDESTORY>'));assert(text.trim().endsWith('</SIDESTORY>'));
- assert(text.includes('<part n="1" request="두 사람이 싸운 이야기">\n싸움이 시작됐다.'));
- assert(text.includes('<previous_part n="2" request="더 천천히">'));
+ assert(text.includes('<part n="1">\n싸움이 시작됐다.'));assert(!text.includes('두 사람이 싸운 이야기'));
+ assert(text.includes('<previous_part n="2">'));
  assert(text.includes('<resume_point>\n며칠이 지났다.\n\n그가 먼저 문을 두드렸다.\n</resume_point>'));
  assert(text.includes('Part 3 of an ongoing side story'));
  assert(!text.includes('초안'),'superseded draft never reaches the prompt');
@@ -37,7 +37,7 @@ test('long series falls back to recaps for earlier parts; revise sends the draft
  const cont=C.contextualPrompt(s,'D',chain,'continue');
  assert(cont.includes('RECAP_A'));assert(!cont.includes(big));
  const rev=C.contextualPrompt(s,'고쳐줘',chain,'revise');
- assert(rev.includes('<draft_to_revise request="C">\nC 본문'));assert(rev.includes('<previous_part n="2" request="B">'));
+ assert(rev.includes('<draft_to_revise>\nC 본문'));assert(rev.includes('<previous_part n="2">'));
  assert(!rev.includes('<resume_point>'));assert(!rev.includes('<timeline>'),'a revision keeps the original timing');
  assert(rev.includes('Revise <draft_to_revise>'));
 });
