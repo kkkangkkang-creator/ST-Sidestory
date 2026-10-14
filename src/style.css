@@ -2,6 +2,8 @@
    Warm grey ground, white surfaces, ink text; one crimson accent marks "where I am" and the main action.
    Phone first. From 900px a sidebar keeps the story list; from 1200px a thread gets a right-hand panel. */
 :host{all:initial;position:fixed!important;margin:0;padding:0;border:0;background:transparent;overflow:visible;z-index:2147482000}
+/* Shadow descendants' [hidden] rule does not hide the fullscreen host itself. */
+:host([hidden]){display:none!important}
 .app{
  --ground:#f1f1ee;--surface:#ffffff;--ink:#16171a;--muted:#5f6268;--faint:#8b8e94;--line:#e1e1dc;
  --accent:#ad2c45;--on-accent:#ffffff;--accent-soft:#f6e4e8;--accent-line:#e7b9c3;--danger:#b4263f;
