@@ -1,4 +1,4 @@
-let referencesOpen=false,referenceTab='context',settingsTab='',promptTab='story',referenceBook='';
+let settingsTab='',promptTab='story',referenceBook='';
 function currentCardView(){return characters.map(c=>`<span class="st-current-card">${c.avatar?`<img src="${E(SillyTavern.getContext().getThumbnailUrl?.('avatar',c.avatar)||'') }" alt="" loading="lazy">`:''}<span><b>${E(H.character(c).name)}</b><small>${E(c.id)}</small></span></span>`).join('');}
 /** One titled block inside a settings page. */
 function settingsSection(title,body,note=''){return `<section class="settings-block">${title?`<h2 class="label">${title}</h2>`:''}${note?`<p class="hint">${note}</p>`:''}<div class="stack">${body}</div></section>`;}

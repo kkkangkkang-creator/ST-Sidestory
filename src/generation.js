@@ -15,7 +15,7 @@ function checkTask(target,signal){
 function showCompletedResult(record,translation,target,signal){
  // A page/tab change should reveal the result; a chat change or cancellation must not.
  if(!alive||signal?.aborted||target!==activeChat())return false;
- closeFeature();referencesOpen=false;
+ closeFeature();
  s.requestDrafts[s.mode]=s.request;s.mode=record.mode;s.request=s.requestDrafts[s.mode]||'';
  current=record;if(record.mode==='facet')s.facetWorkspace=record.facetPhase==='plan'?'identity':'au';continuationMode=null;page='create';mobilePane='result';viewEpoch++;
  translationShown=translation;translationDraft=null;raw=false;editing=false;
@@ -172,7 +172,7 @@ async function generate(action='new'){
   const depth=options.loreScanDepth,recent=priorChain&&['continue','revise'].includes(action)?priorChain.slice(-depth).map(r=>C.plainText(r)):(()=>{const rows=(SillyTavern.getContext().chat||[]).filter(m=>m&&!m.is_system);const cut=Number.isInteger(options.historyCutoff)?options.historyCutoff:null;return (cut===null?rows:rows.slice(0,cut+1)).slice(-depth).map(m=>String(m.mes||''));})();
   options.loreScan=[task,...recent].join('\n');
  }
- referencesOpen=false;busy=true;busyTask='generation';editing=false;page='create';mobilePane='result';
+ busy=true;busyTask='generation';editing=false;page='create';mobilePane='result';
  controller=new AbortController();const signal=controller.signal;runId=H.uuid();let partial='';
  const record={
   id:action==='facet-replan'?previous.id:H.uuid(),mode:options.mode,
