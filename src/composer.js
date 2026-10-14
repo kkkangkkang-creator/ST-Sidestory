@@ -1,6 +1,4 @@
 /* Shared composer controls for the original workspace and inner-life workspace. */
-let inputPanelOpen=false,inputPanelTab='history',inputPanelScope='all';
-let lastOuterMode='visual',lastInnerMode='speak';
 const workResults=new Map();
 function isInner(mode=s.mode){return ['speak','write'].includes(mode);}
 function switchWorkMode(mode){
@@ -9,15 +7,9 @@ function switchWorkMode(mode){
  s.requestDrafts[s.mode]=s.request;
  if(current?.chatId===chatId)workResults.set(current.mode,current);
  s.mode=mode;s.request=s.requestDrafts[mode]||'';
- if(isInner(mode))lastInnerMode=mode;else if(mode!=='facet')lastOuterMode=mode;
  const cached=workResults.get(mode);current=cached?records.find(r=>r.id===cached.id&&r.chatId===chatId)||null:null;if(mode==='facet'&&!facetWorkspaceMatches(current,s.facetWorkspace))current=records.filter(r=>r.chatId===chatId&&facetWorkspaceMatches(r,s.facetWorkspace)).sort((a,b)=>b.createdAt-a.createdAt)[0]||null;
- page='create';viewEpoch++;mobilePane='compose';raw=false;editing=false;translationDraft=null;translationShown=false;referencesOpen=false;
+ page='create';viewEpoch++;mobilePane='compose';raw=false;editing=false;translationDraft=null;translationShown=false;
  persist();render();
-}
-function switchWorkSection(inner){
- if(isInner())lastInnerMode=s.mode;else if(s.mode!=='facet')lastOuterMode=s.mode;
- if(s.mode!=='facet'&&inner===isInner()){page='create';viewEpoch++;render();return;}
- switchWorkMode(inner?lastInnerMode:lastOuterMode);
 }
 function userName(){const p=personas.find(p=>s.personaIds?.includes(p.id)||s.personaIds?.includes('persona:'+p.id));return p?H.character(p).name:'{{user}}';}
 function knobSelect(label,key,items){return `<label class="knob" title="${label}"><span>${label}</span><select data-setting="${key}" aria-label="${label}">${items.map(x=>opt(x[0],x[1],s[key])).join('')}</select></label>`;}
