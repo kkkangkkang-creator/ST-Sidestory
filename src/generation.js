@@ -209,7 +209,7 @@ async function generate(action='new'){
     // The plan prompt requests concise JSON, and failures NEVER trigger a billable automatic retry.
     const planMaxTokens=8500;
     planText=await sendGeneration({connectionId:bundle.cid,messages:planFit.messages,parameters:{maxTokens:planMaxTokens},streaming:false,runId:runId+'-au-plan',useSillyTavernContext:false},options,'다면 · 인물 추출',()=>{},bundle.counter);
-    checkTask(target,signal);
+    checkTask(target,signal);planText=C.stripReasoning(planText,options.reasoningBlocks);
     try{plan=SideIdentity.parse(SideFacet.readPlanJSON(planText),facet.target,facet.relation);}
     catch(error){throw new Error(error.message+' 자동 재호출은 비용 때문에 하지 않았어요. 필요할 때 직접 다시 생성해 주세요.');}
    }
@@ -251,6 +251,7 @@ async function generate(action='new'){
   const history=useSTContext?{limit:options.scope==='all'?null:Number(options.scope),anchor:action!=='new'?anchor:null,exclude:options.historyExclude===true,append:nativeConversation?.turns||null}:undefined;
   let historyReport=null;
   record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?(nativeConversation?nativeConversation.final:messages[0]?.content):undefined,marker:C.MARKER,history,onHistory:r=>historyReport=r},options,options.mode==='facet'?'다면 · AU 프로필 작성':action,t=>partial=t,bundle.counter);
+  record.content=C.stripReasoning(record.content,options.reasoningBlocks);
   if(C.RECAP_MODES.has(record.mode)){const split=C.splitRecap(record.content);record.content=split.content;if(split.recap)record.recap=split.recap;}
   record.outputTokens=await bundle.counter.text(record.content);checkTask(target,signal);
   record.tokenizer=bundle.counter.info();
@@ -262,6 +263,7 @@ async function generate(action='new'){
   if(showCompletedResult(record,false,target,signal))say(anchorLost?'완성했어요. 다만 시리즈 기준 메시지를 본편에서 찾지 못해(삭제·수정) 현재 본편 전체를 참고했어요.':partialVisual?'HTML이 출력 중간에서 끝났어요. 받은 범위까지 자동 복구해 표시하고 저장했어요.':'완성했어요. 결과 화면으로 이동했어요.');
  }catch(e){
   record.content=record.content||partial;
+  if(record.content)record.content=C.stripReasoning(record.content,options.reasoningBlocks);
   if(C.RECAP_MODES.has(record.mode)&&record.content){const split=C.splitRecap(record.content);record.content=split.content;if(split.recap)record.recap=split.recap;}
   const keepView=viewEpoch===viewEpochAtStart&&(current?.id||null)===viewIdAtStart;
   if(record.content){
