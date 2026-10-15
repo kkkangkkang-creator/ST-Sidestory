@@ -2200,7 +2200,11 @@ const keydown=e=>{if(!opened)return;if(featureKeydown(e))return;if(dialogState){
  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&!busy){if(page==='create'&&mobilePane==='compose'&&!sheet){e.preventDefault();run(s.mode==='facet'&&s.facetWorkspace==='identity'?'facet-extract':'new').catch(x=>say(x.message,true));}else if(root.activeElement?.id==='followup'){e.preventDefault();run('continue').catch(x=>say(x.message,true));}return;}
  if(e.key==='Tab')trapFocus(e,root.querySelector('.archive-organizer')||root.querySelector('.sheet')||root.querySelector('.layer')||root.querySelector('.window'));};
 function trapFocus(e,scope){if(!scope)return;const elements=[...scope.querySelectorAll('button,input,select,textarea,summary')].filter(x=>!x.disabled&&x.getClientRects().length),first=elements[0],last=elements.at(-1);if(!scope.contains(root.activeElement)){e.preventDefault();(e.shiftKey?last:first)?.focus();return;}if(e.shiftKey&&root.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&root.activeElement===last){e.preventDefault();first?.focus();}}
-document.addEventListener('keydown',keydown);
+// While SIDE B is open its keys stay inside it. Behind a shadow root the host app only sees our host element as
+// the target, not the textarea, so it would treat arrow keys as swipe/regenerate shortcuts.
+const isolateKeys=e=>{if(e.type==='keydown')keydown(e);e.stopPropagation();};
+for(const type of ['keydown','keyup','keypress'])host.addEventListener(type,isolateKeys);
+document.addEventListener('keydown',e=>{keydown(e);if(opened)e.stopPropagation();});
 stHost.onCleanup(()=>{flushSettings();if(searchTimer)stHost.clearTimeout(searchTimer);if(toastTimer)stHost.clearTimeout(toastTimer);if(dialogResolve){const r=dialogResolve;dialogResolve=null;dialogState=null;r(false);}alive=false;stop();document.removeEventListener('keydown',keydown);host.remove();db?.close();});render();
 
 async function openFromWand(){
