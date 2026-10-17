@@ -241,6 +241,7 @@ async function generate(action='new'){
   }else{
    const extra={lore:useSTContext?bundle.lore:null,regen:action==='regenerate'};
    const taskMessages=useSTContext?[{role:'user',content:C.contextualPrompt(options,task,prior,baseAction,extra)}]:C.messages(options,bundle.ctx,task,prior,baseAction,extra);
+   taskMessages.push(...C.auxiliaryTurns(options,options.mode));
    fitted=await fitTokenBudget(taskMessages,options.inputMaxTokens,bundle.counter);
    if(fitted.dropped)bundle.ctx.warnings.push('전체 입력 한도에 맞춰 오래된 참고 대화 '+fitted.dropped.toLocaleString()+'개를 추가로 제외했어요.');
    if(fitted.tokens>options.inputMaxTokens)throw new Error('과거 대화를 제외해도 전체 입력이 한도를 넘어요. 입력 한도를 높이거나 고정 자료를 줄여 주세요.');
@@ -254,7 +255,7 @@ async function generate(action='new'){
   const nativeConversation=useSTContext?C.nativeTurns(options,task,prior,baseAction,{lore:bundle.lore,regen:action==='regenerate'}):null;
   const history=useSTContext?{limit:options.scope==='all'?null:Number(options.scope),anchor:action!=='new'?anchor:null,exclude:options.historyExclude===true,append:nativeConversation?.turns||null}:undefined;
   let historyReport=null;
-  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?(nativeConversation?nativeConversation.final:messages[0]?.content):undefined,marker:C.MARKER,history,presetName:useSTContext?options.stPreset||'':undefined,onHistory:r=>historyReport=r},options,options.mode==='facet'?'다면 · AU 프로필 작성':action,t=>partial=t,bundle.counter);
+  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?(nativeConversation?nativeConversation.final:messages[0]?.content):undefined,auxiliaryTurns:options.mode!=='facet'?C.auxiliaryTurns(options,options.mode):[],marker:C.MARKER,history,presetName:useSTContext?options.stPreset||'':undefined,onHistory:r=>historyReport=r},options,options.mode==='facet'?'다면 · AU 프로필 작성':action,t=>partial=t,bundle.counter);
   record.content=C.stripReasoning(record.content,options.reasoningBlocks);
   if(C.RECAP_MODES.has(record.mode)){const split=C.splitRecap(record.content);record.content=split.content;if(split.recap)record.recap=split.recap;}
   record.outputTokens=await bundle.counter.text(record.content);checkTask(target,signal);

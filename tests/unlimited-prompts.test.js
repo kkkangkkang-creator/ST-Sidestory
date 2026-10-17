@@ -36,7 +36,7 @@ test('instruction editors no longer impose maxlength and preset save handlers re
  for(const [action,next] of [['instruction-preset-save','instruction-preset-rename'],['translation-preset-save','translation-preset-cancel']]){
   const block=source.split(`case '${action}':`)[1].split(`case '${next}':`)[0];
   const item={name:'Test'},s={prompts:{}},AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
-  const run=new AsyncFunction('item','s','text',`const promptTab='story',C={MODES:{story:'Story'}},promptDrafts={story:text},activeInstructionPreset=()=>item,activeTranslationPreset=()=>item,translationPresetText=()=>text,translationPresetDrafts=new Map(),persist=()=>{},flushSettings=()=>{},say=()=>{},render=()=>{},saveQueue=Promise.resolve();switch('save'){case 'save':${block}}`);
+  const run=new AsyncFunction('item','s','text',`const auxDraft=()=>({enabled:false,assistant:'',user:''}),auxDrafts=new Map(),promptTab='story',C={MODES:{story:'Story'}},promptDrafts={story:text},activeInstructionPreset=()=>item,activeTranslationPreset=()=>item,translationPresetText=()=>text,translationPresetDrafts=new Map(),persist=()=>{},flushSettings=()=>{},say=()=>{},render=()=>{},saveQueue=Promise.resolve();switch('save'){case 'save':${block}}`);
   await run(item,s,long);assert.equal(item.prompt,long);
  }
 });

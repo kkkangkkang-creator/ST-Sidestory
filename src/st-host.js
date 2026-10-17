@@ -155,7 +155,8 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
     }
     function shapePrompt(data) {
         if(!pending||data?.dryRun||!Array.isArray(data?.chat))return;
-        try{shapeTurn(data);}finally{if(Array.isArray(data.chat)){restoreHistory(data.chat);pending.finalPrompt=structuredClone(data.chat);}}
+        for(let i=data.chat.length-1;i>=0;i--)if(pending.auxInserted?.has(data.chat[i]))data.chat.splice(i,1);
+        try{shapeTurn(data);for(const row of pending.auxiliaryTurns||[]){const copy={...row};data.chat.push(copy);pending.auxInserted.add(copy);}}finally{if(Array.isArray(data.chat)){restoreHistory(data.chat);pending.finalPrompt=structuredClone(data.chat);}}
     }
     function shapeTurn(data) {
         const chat=data.chat,marker=pending.marker;
@@ -324,7 +325,8 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
                     // Connection facts only (no prompt text): used by the content-free structure report.
                     const meta={api:String(c.mainApi||''),source:String(cc.chat_completion_source||''),model:String(c.getChatCompletionModel?.()||''),squash:cc.squash_system_messages===true,postProcessing:String(cc.custom_prompt_post_processing||''),prefillChars:String(cc.assistant_prefill||'').length,presetMaxTokens:Number(cc.openai_max_tokens)||null,requestedMaxTokens:payload.parameters?.maxTokens??null,promptReadyEvent:!!readyEvent};
                     const marker=payload.marker||'<SIDESTORY>',at=quietPrompt.indexOf(marker);
-                    pending={marker,turn:at>=0?quietPrompt.slice(at):'',history:payload.history||null,meta};
+                    if(payload.auxiliaryTurns?.length&&(!shaping||(c.mainApi&&c.mainApi!=='openai')))throw Error('보조 대화는 프롬프트 편집 이벤트를 지원하는 채팅 완성 API에서 사용할 수 있어요.');
+                    pending={auxiliaryTurns:payload.auxiliaryTurns||[],auxInserted:new WeakSet(),marker,turn:at>=0?quietPrompt.slice(at):'',history:payload.history||null,meta};
                     // Run after other extensions' PROMPT_READY handlers so the request stays the final user turn.
                     if(shaping){if(typeof events.makeLast==='function')events.makeLast(readyEvent,ready);else events.on(readyEvent,ready);}
                     try{return await withPreset(payload.presetName||'',quietRun);}

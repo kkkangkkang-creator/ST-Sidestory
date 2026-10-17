@@ -67,6 +67,16 @@ test('full UI with ST adapter: initialize, select references, generate, archive,
  click('[data-open="'+html.id+'"]');click('[data-sheet=more]');click('#favorite');await wait(()=>records.get(html.id).favorite);click('.nav [data-page=archive]');
  $('#fav-only').checked=true;$('#fav-only').dispatchEvent(new window.Event('change',{bubbles:true}));assert.equal(root.querySelectorAll('.series-entry').length,1);assert.equal(root.querySelectorAll('.series-entry [data-open]').length,1);
  $('#fav-only').checked=false;$('#fav-only').dispatchEvent(new window.Event('change',{bubbles:true}));click('#archive-delete-mode');assert.equal(root.querySelectorAll('[data-archive-select]').length,5);click('#archive-delete-mode');
+ click('[data-page=settings]');click('[data-settings-tab=prompts]');click('[data-prompt-tab=story]');
+ assert($('[data-aux=enabled]').disabled);click('#instruction-preset-clone');await wait(()=>$('#side-dialog-input'));
+ $('#side-dialog-input').value='보조 대화 테스트';click('#side-dialog-confirm');await wait(()=>!$('[data-aux=enabled]').disabled);
+ const auxInput=(key,value)=>{const el=$('[data-aux='+key+']');if(key==='enabled')el.checked=value;else el.value=value;el.dispatchEvent(new window.Event('input',{bubbles:true}));};
+ auxInput('assistant','What atmosphere?');auxInput('user','A calm scene.');auxInput('enabled',true);assert(!$('#prompt-savebar').hidden);click('#instruction-preset-save');
+ await wait(()=>c.extensionSettings.st_sidestory.instructionPresets?.some(p=>p.auxDialogue?.enabled));
+ const preset=c.extensionSettings.st_sidestory.instructionPresets.find(p=>p.name==='보조 대화 테스트');assert.deepEqual(preset.auxDialogue,{enabled:true,assistant:'What atmosphere?',user:'A calm scene.'});
+ auxInput('user','UNSAVED');click('#prompt-revert');assert.equal($('[data-aux=user]').value,'A calm scene.');
+ auxInput('enabled',false);click('#instruction-preset-save');await wait(()=>!c.extensionSettings.st_sidestory.instructionPresets.find(p=>p.id===preset.id).auxDialogue.enabled);
+ assert.equal(c.extensionSettings.st_sidestory.instructionPresets.find(p=>p.id===preset.id).auxDialogue.user,'A calm scene.');
  h.cleanup();await new Promise(r=>setTimeout(r,5));assert(saved);assert.equal(document.querySelector('#st-sidestory-root'),null);assert.equal(document.querySelector('#side-story-wand'),null);
 });
 
