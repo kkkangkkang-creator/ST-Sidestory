@@ -17,7 +17,7 @@ function showCompletedResult(record,translation,target,signal){
  if(!alive||signal?.aborted||target!==activeChat())return false;
  closeFeature();
  s.requestDrafts[s.mode]=s.request;s.mode=record.mode;s.request=s.requestDrafts[s.mode]||'';
- current=record;if(record.mode==='facet')s.facetWorkspace=record.facetPhase==='plan'?'identity':'au';continuationMode=null;page='create';mobilePane='result';viewEpoch++;
+ current=record;if(record.mode==='facet')s.facetWorkspace=record.facetPhase==='plan'?'identity':'au';continuationMode=null;continuationKnobs=null;page='create';mobilePane='result';viewEpoch++;
  translationShown=translation;translationDraft=null;raw=false;editing=false;
  return true;
 }
@@ -130,6 +130,7 @@ async function generate(action='new'){
  const viewIdAtStart=current?.id||null,viewEpochAtStart=viewEpoch,before=current;
  const options=referenceOptions();if(extract){options.mode='facet';options.facet.target=s.facetIdentityTarget;options.facet.relation=s.facetIdentityRelation;}
  if(previous)options.mode=action==='continue'&&(continuationMode in C.MODES)?continuationMode:previous.mode;
+ if(action==='continue'){const knobs=continueKnobValues(options.mode);if(knobs)for(const k of CONTINUE_KNOBS[options.mode==='think'?'speak':options.mode])options[k]=knobs[k];}
  if(action==='continue'&&(previous?.mode==='facet'||options.mode==='facet')){say('다면은 이어쓰기를 지원하지 않아요. 수정 요청을 사용해 주세요.');return;}
  if(previous?.mode==='facet')options.facet=SideFacet.clean(previous.settings?.facet);
  if(options.mode==='facet'&&!extract&&!options.facet.prompt.trim()){say('다면 프롬프트를 먼저 작성해 주세요.');return;}
