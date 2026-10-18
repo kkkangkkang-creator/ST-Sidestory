@@ -283,14 +283,14 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         const list=(Array.isArray(parts)&&parts.length?parts:[record]).filter(Boolean);
         const c=get(),origin=currentChatId();
         if(running||(typeof state.isGenerating==='function'&&state.isGenerating())||c.isSendPress||(typeof c.isGenerating==='function'?c.isGenerating():c.isGenerating))throw new Error('생성이 끝난 뒤 새 채팅을 만들어 주세요.');
-        if(!record||list.some(r=>!r?.content?.trim()))throw new Error('새 채팅에 넣을 원문이 없어요.');
+        if(!record||list.some(r=>!r?.content?.trim()))throw new Error('새 채팅에 넣을 본문이 없어요.');
         let owner='';try{const parsed=JSON.parse(record.chatId);if(typeof parsed?.[0]==='string')owner=parsed[0];}catch{}
         const avatar=owner.startsWith('character:')?owner.slice(10):record.characterIds?.length===1?record.characterIds[0]:'';
         const index=(c.characters||[]).findIndex(row=>row.avatar===avatar),character=c.characters?.[index];
-        if(!character)throw new Error('원본 캐릭터를 찾지 못했어요. 새 채팅은 캐릭터가 하나인 결과에서 지원해요.');
+        if(!character)throw new Error('원본 캐릭터를 찾지 못했어요. 새 채팅은 캐릭터가 하나인 아티클에서 지원해요.');
         if(typeof c.openCharacterChat!=='function'||typeof c.selectCharacterById!=='function'||typeof c.getRequestHeaders!=='function')throw new Error('새 채팅 API를 지원하는 ST 버전이 필요해요.');
         const uuid=()=>c.uuidv4?.()||globalThis.crypto.randomUUID?.()||Array.from(globalThis.crypto.getRandomValues(new Uint32Array(4)),n=>n.toString(16).padStart(8,'0')).join('');
-        const name='Side Story - '+String((list.length>1&&record.seriesTitle)||record.title||'새 이야기').replace(/[\\/:*?"<>|\x00-\x1f]/g,'_').slice(0,60)+' - '+uuid();
+        const name='Side Story - '+String((list.length>1&&record.seriesTitle)||record.title||'새 아티클').replace(/[\\/:*?"<>|\x00-\x1f]/g,'_').slice(0,60)+' - '+uuid();
         const messages=list.map(r=>({name:character.name,is_user:false,is_system:false,send_date:new Date().toISOString(),mes:r.content,extra:{sideStoryRecordId:r.id}}));
         const response=await fetcher('/api/chats/save',{method:'POST',headers:c.getRequestHeaders(),body:JSON.stringify({ch_name:character.name,avatar_url:character.avatar,file_name:name,force:false,chat:[{user_name:'unused',character_name:'unused',chat_metadata:{integrity:uuid()}},...messages]})});
         if(!response.ok)throw new Error('새 채팅 저장 실패: '+response.status);
@@ -306,8 +306,8 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
     async function appendToCurrentChat(record, parts) {
         const c=get(),list=(Array.isArray(parts)&&parts.length?parts:[record]).filter(Boolean);
         if(running||(typeof state.isGenerating==='function'&&state.isGenerating())||c.isSendPress||(typeof c.isGenerating==='function'?c.isGenerating():c.isGenerating))throw new Error('생성이 끝난 뒤 채팅에 추가해 주세요.');
-        if(!record||list.some(r=>!r?.content?.trim()))throw new Error('채팅에 넣을 원문이 없어요.');
-        if(record.chatId!==currentChatId())throw new Error('이 결과를 만든 채팅에서만 추가할 수 있어요.');
+        if(!record||list.some(r=>!r?.content?.trim()))throw new Error('채팅에 넣을 본문이 없어요.');
+        if(record.chatId!==currentChatId())throw new Error('이 아티클을 만든 채팅에서만 추가할 수 있어요.');
         if(!Array.isArray(c.chat)||typeof c.addOneMessage!=='function'||typeof c.saveChat!=='function')throw new Error('메시지 추가 API를 지원하는 ST 버전이 필요해요.');
         // Group chats: speak as the character the result was written for when that member is present.
         const own=c.characters?.[c.characterId],picked=c.groupId!=null?(c.characters||[]).find(row=>row.avatar===record.characterIds?.[0]):own;
