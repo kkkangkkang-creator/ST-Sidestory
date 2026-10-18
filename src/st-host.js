@@ -283,7 +283,7 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         const list=(Array.isArray(parts)&&parts.length?parts:[record]).filter(Boolean);
         const c=get(),origin=currentChatId();
         if(running||(typeof state.isGenerating==='function'&&state.isGenerating())||c.isSendPress||(typeof c.isGenerating==='function'?c.isGenerating():c.isGenerating))throw new Error('생성이 끝난 뒤 새 채팅을 만들어 주세요.');
-        if(!record||list.some(r=>!r?.content?.trim()))throw new Error('새 채팅에 넣을 본문이 없어요.');
+        if(!record||list.some(r=>!r?.content?.trim()))throw new Error('새 채팅에 넣을 아티클이 없어요.');
         let owner='';try{const parsed=JSON.parse(record.chatId);if(typeof parsed?.[0]==='string')owner=parsed[0];}catch{}
         const avatar=owner.startsWith('character:')?owner.slice(10):record.characterIds?.length===1?record.characterIds[0]:'';
         const index=(c.characters||[]).findIndex(row=>row.avatar===avatar),character=c.characters?.[index];
@@ -306,7 +306,7 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
     async function appendToCurrentChat(record, parts) {
         const c=get(),list=(Array.isArray(parts)&&parts.length?parts:[record]).filter(Boolean);
         if(running||(typeof state.isGenerating==='function'&&state.isGenerating())||c.isSendPress||(typeof c.isGenerating==='function'?c.isGenerating():c.isGenerating))throw new Error('생성이 끝난 뒤 채팅에 추가해 주세요.');
-        if(!record||list.some(r=>!r?.content?.trim()))throw new Error('채팅에 넣을 본문이 없어요.');
+        if(!record||list.some(r=>!r?.content?.trim()))throw new Error('채팅에 넣을 아티클이 없어요.');
         if(record.chatId!==currentChatId())throw new Error('이 아티클을 만든 채팅에서만 추가할 수 있어요.');
         if(!Array.isArray(c.chat)||typeof c.addOneMessage!=='function'||typeof c.saveChat!=='function')throw new Error('메시지 추가 API를 지원하는 ST 버전이 필요해요.');
         // Group chats: speak as the character the result was written for when that member is present.

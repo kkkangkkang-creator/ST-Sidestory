@@ -14,7 +14,7 @@ test('new chat can take every part up to the current one, one character message 
  await host.createChatFromRecord(parts[1],parts);
  assert.deepEqual(payload.chat.slice(1).map(m=>[m.mes,m.is_user,m.extra.sideStoryRecordId]),[['FIRST',false,'p1'],['SECOND',false,'p2']]);
  assert(payload.file_name.startsWith('Side Story - Series - '));
- await assert.rejects(host.createChatFromRecord(parts[1],[parts[0],{id:'x',chatId,content:' '}]),/본문이 없어요/);
+ await assert.rejects(host.createChatFromRecord(parts[1],[parts[0],{id:'x',chatId,content:' '}]),/아티클이 없어요/);
 });
 
 test('settings normalise theme colour and reader navigation',()=>{
