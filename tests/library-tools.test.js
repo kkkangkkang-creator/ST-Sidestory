@@ -61,7 +61,7 @@ test('rename, archive bulk actions, chat append, branch placeholder and progress
  click(`.read [data-open="${first.id}"]`);assert.equal($('.branch-note'),null);assert.match($('#followup').getAttribute('placeholder'),/1편에서 새 갈래/);
 
  // Rename one part, then the series.
- click('[data-sheet=more]');click('#rename-current');click(`[data-rename-record="${first.id}"]`);await answer('바뀐 1편');await wait(()=>records.get(first.id).title==='바뀐 1편');
+ click('[data-sheet=more]');click('#rename-current');click(`[data-rename-record="${first.id}"]`);await answer('바뀐 1편');await wait(()=>records.get(first.id).title==='바뀐 1편');await new Promise(r=>setTimeout(r,50));
  click('[data-sheet=more]');click('#rename-current');click('#series-rename');await answer('새 시리즈');await wait(()=>records.get(second.id).seriesTitle==='새 시리즈');
 
  // Progressive translation: several marked chunks, one reply cut short and re-requested.
@@ -81,9 +81,9 @@ test('rename, archive bulk actions, chat append, branch placeholder and progress
 
  // Archive selection: bulk favourite and tags/folder.
  click('[data-page=archive]');click('#archive-delete-mode');click('[data-archive-select-page],#archive-select-page');
- click('#archive-bulk-favorite');await wait(()=>[...records.values()].every(r=>r.favorite));
- click('#archive-bulk-organize');$('#archive-bulk-add').value='항구, 시리즈';click('#archive-bulk-save');await wait(()=>[...records.values()].every(r=>r.tags?.includes('항구')&&r.tags.includes('시리즈')));
- click('#archive-bulk-organize');$('#archive-bulk-remove').value='시리즈';click('#archive-bulk-save');await wait(()=>[...records.values()].every(r=>!r.tags.includes('시리즈')&&r.tags.includes('항구')));
+ click('#archive-bulk-favorite');await wait(()=>[...records.values()].every(r=>r.favorite)&&$('#notice').textContent.includes('즐겨찾기에 넣었어요'));
+ click('#archive-bulk-organize');$('#archive-bulk-add').value='항구, 시리즈';click('#archive-bulk-save');await wait(()=>[...records.values()].every(r=>r.tags?.includes('항구')&&r.tags.includes('시리즈'))&&!$('.archive-organizer'));
+ click('#archive-bulk-organize');$('#archive-bulk-remove').value='시리즈';click('#archive-bulk-save');await wait(()=>[...records.values()].every(r=>!r.tags.includes('시리즈')&&r.tags.includes('항구'))&&!$('.archive-organizer'));
  click('#archive-bulk-favorite');await wait(()=>[...records.values()].every(r=>!r.favorite));
  h.cleanup();await new Promise(r=>setTimeout(r,5));
 });
