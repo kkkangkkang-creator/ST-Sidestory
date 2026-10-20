@@ -1,0 +1,1 @@
+export const power_user = { instruct:{enabled:false}, sysprompt:{enabled:false, content:''}, context:{example_separator:'***', chat_start:'<START>'} }; export function performFuzzySearch(){return [];}

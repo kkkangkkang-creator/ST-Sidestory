@@ -1,0 +1,14 @@
+{
+  "kind": "marinara.personal-extension",
+  "version": 1,
+  "config": {
+    "name": "SillyTavern Macro Compatibility",
+    "version": "1.0.0",
+    "description": "Converts SillyTavern macros ({{.var = x}}, {{if !.flag}}, {{$global}}, {{lastMessage}} and the rest) in presets to Marinara syntax, and fills the values Marinara has no macro for right before each generation.",
+    "runtime": "client",
+    "capabilities": [
+      "full_page_access"
+    ],
+    "jsPath": "extension.js"
+  }
+}
