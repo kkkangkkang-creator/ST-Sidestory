@@ -31,9 +31,10 @@ function render(){if(!alive)return;const fu=$('followup');if(fu)followDraft=fu.v
  const body=view==='compose'?composeScreen():view==='thread'?threadScreen():page==='archive'?compactArchive():page==='settings'?settingsScreen():page==='requests'||page==='diagnostics'?legacyScreen():compactArchive();
  SideMorph.patch(ui,`<section class="window" role="dialog" aria-modal="true" aria-label="Side Story" ${opened?'':'hidden'}><aside class="side" aria-label="이 채팅의 아티클">${sideList()}</aside><div class="main">${body}${busyPill(view)}</div>${navBar(view)}<span id="notice" class="sr-only" role="status">${E((notice||'').split('\n')[0])}</span>${layerView()}<div id="sheet-root">${sheetView()}</div>${archiveOrganizer()}</section>${dialogView()}${toastView()}`);
  if(reading)paint();if(featurePanel&&!$('feature-layer'))paintFeature();}
+function readyPill(){const r=readyRecordId&&records.find(x=>x.id===readyRecordId);if(!r)return '';return `<div class="busy-pill ready" role="status"><span class="side-toast-mark">✓</span><span class="grow">새 아티클이 완성됐어요</span><button data-open="${E(r.id)}">보기</button><button id="ready-dismiss" aria-label="닫기">${icon('close')}</button></div>`;}
 function screenKind(){if(page!=='create')return page==='settings'||page==='requests'||page==='diagnostics'?page:'archive';if(mobilePane==='result'&&(current||busy))return 'thread';return 'compose';}
 function navBar(view){const item=(key,label,ic)=>`<button data-page="${key}" aria-current="${(view===key||(key==='archive'&&view==='thread')||(key==='settings'&&['requests','diagnostics'].includes(view)))?'page':'false'}">${icon(ic)}<span>${label}</span></button>`;return `<nav class="nav" aria-label="화면">${item('archive','보관함','folder')}<button class="nav-new" data-pane="compose" aria-current="${view==='compose'?'page':'false'}"><span class="plus">${icon('plus')}</span><span>새로 쓰기</span></button>${item('settings','설정','sliders')}</nav>`;}
-function busyPill(view){if(!busy)return '';if(view==='thread'&&pending&&current&&pending.thread===threadKey(current))return '';return `<div class="busy-pill" role="status"><span class="pulse"></span><span>${busyLabel()} 중</span>${pending?.from&&records.some(r=>r.id===pending.from)?`<button data-open="${E(pending.from)}">보기</button>`:''}<button id="stop-global">중단</button></div>`;}
+function busyPill(view){if(!busy)return readyPill();if(view==='thread'&&pending&&(pending.action==='new'?!pending.browsing:current&&pending.thread===threadKey(current)))return '';if(pending?.action==='new')return `<div class="busy-pill" role="status"><span class="pulse"></span><span>${busyLabel()} 중</span><button id="busy-view">보기</button><button id="stop-global">중단</button></div>`;return `<div class="busy-pill" role="status"><span class="pulse"></span><span>${busyLabel()} 중</span>${pending?.from&&records.some(r=>r.id===pending.from)?`<button data-open="${E(pending.from)}">보기</button>`:''}<button id="stop-global">중단</button></div>`;}
 function busyLabel(){return busyTask==='translation'?'번역':busyTask==='facet-plan'?'1/2 · 인물 추출':busyTask==='facet-write'?'2/2 · 프로필 작성':'생성';}
 function threadKey(r){return r?.seriesId||r?.id||'';}
 
@@ -66,7 +67,7 @@ function scopeLabel(){const v=String(s.scope??'all');return v==='all'||v===''?'�
 
 /* ---------- 스레드 */
 function threadScreen(){
- if(!current||(busy&&pending?.action==='new'))return waitingScreen();
+ if(!current||(busy&&pending?.action==='new'&&!pending.browsing))return waitingScreen();
  const plan=current.mode==='facet'&&current.facetPhase==='plan';
  const line=partLine(current),at=Math.max(0,line.findIndex(r=>r.id===current.id)),series=line.length>1,last=at===line.length-1;
  const sub=[kindLabel(current.mode),series?`${line.length}편 중 ${at+1}편`:'',current.status==='partial'?'미완료':''].filter(Boolean).join(' · ');
@@ -204,7 +205,7 @@ function legacyScreen(){const tab=page;queueMicrotask(()=>{if(page===tab){settin
 async function run(action){const before=current,label=action==='continue'?followupText('continue'):action==='new'?(s.mode==='facet'?'AU':s.request.trim()):(rewriteDraft.trim()||before?.instruction||before?.title||'');
  pending={action:['continue','revise','regenerate'].includes(action)&&before?action:'new',thread:['continue','revise','regenerate'].includes(action)&&before?threadKey(before):'',from:before?.id||'',label:label.slice(0,120)};
  sheet='';sheetBack='';
- try{await generate(action);}finally{const fresh=current&&current.id!==before?.id;pending=null;if(fresh){if(action==='continue')followDraft='';if(['revise','regenerate'].includes(action))rewriteDraft='';}else if(['new','facet-extract'].includes(action)&&page==='create')mobilePane='compose';if(alive)render();}}
+ try{await generate(action);}finally{const browsed=!!pending?.browsing,fresh=current&&current.id!==before?.id;pending=null;if(fresh){if(action==='continue')followDraft='';if(['revise','regenerate'].includes(action))rewriteDraft='';}else if(!browsed&&['new','facet-extract'].includes(action)&&page==='create')mobilePane='compose';if(alive)render();}}
 
 const auxDrafts=new Map();
 function auxDraft(mode=promptTab){const p=activeInstructionPreset(mode);return C.cleanAux(auxDrafts.get(p?.id)||p?.auxDialogue);}
