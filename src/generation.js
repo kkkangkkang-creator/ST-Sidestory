@@ -12,9 +12,11 @@ async function collectLore(options,chat,signal){
 function checkTask(target,signal){
  if(!alive||signal?.aborted||target!==activeChat())throw new DOMException('중단됨','AbortError');
 }
+let readyRecordId=null;
 function showCompletedResult(record,translation,target,signal){
  // A page/tab change should reveal the result; a chat change or cancellation must not.
  if(!alive||signal?.aborted||target!==activeChat())return false;
+ if(!translation&&pending?.browsing){readyRecordId=record.id;return false;}
  closeFeature();
  s.requestDrafts[s.mode]=s.request;s.mode=record.mode;s.request=s.requestDrafts[s.mode]||'';
  current=record;if(record.mode==='facet')s.facetWorkspace=record.facetPhase==='plan'?'identity':'au';continuationMode=null;continuationKnobs=null;page='create';mobilePane='result';viewEpoch++;
