@@ -899,3 +899,10 @@ select{height:36px}
 .archive-actions{flex:1 1 100%;display:flex;gap:6px}
 .archive-actions .btn{flex:1;min-width:0;white-space:nowrap;gap:4px}
 .archive-actions .btn .side-icon{width:14px;height:14px}
+.series-tools{display:flex;align-items:center;gap:8px}
+.series-tools>.grow{color:var(--muted);font-size:12.5px}
+.series-tools>.btn:last-child{margin-left:auto}
+.series-row>button[aria-pressed=true] b{color:var(--accent)}
+.series-check{flex:none;width:22px;height:22px;margin-right:8px;border-radius:5px;border:1.5px solid var(--box);display:grid;place-items:center;color:var(--on-accent);pointer-events:none}
+.series-check.on{background:var(--accent);border-color:var(--accent)}
+.series-check .side-icon{width:14px;height:14px}
