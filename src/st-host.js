@@ -349,8 +349,8 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
     }
     async function generate(payload, signal) {
         check(signal);
-        if(running)throw new Error('이전 API 요청이 종료될 때까지 잠시 기다려 주세요.');
-        const c=get();
+        const c=get(),viaProfile=(payload.connectionId||'st-current')!=='st-current';
+        if(running&&!viaProfile)throw new Error('이전 API 요청이 종료될 때까지 잠시 기다려 주세요.');
         if((typeof state.isGenerating==='function' && state.isGenerating()) || (typeof c.isGenerating==='function'?c.isGenerating():c.isGenerating) || c.isSendPress)throw new Error('본편 생성이 끝난 뒤 다시 시도해 주세요.');
         const id=payload.connectionId||'st-current',service=connectionService();
         let send;
@@ -405,8 +405,7 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
             }
         }
         const job=Promise.resolve().then(()=>{check(signal);return send();});
-        running=job;
-        job.then(()=>{if(running===job)running=null;},()=>{if(running===job)running=null;});
+        if(!viaProfile){running=job;job.then(()=>{if(running===job)running=null;},()=>{if(running===job)running=null;});}
         let handler;
         try {
             const cancelled=new Promise((_,reject)=>{handler=()=>reject(abortError());signal?.addEventListener('abort',handler,{once:true});if(signal?.aborted)handler();});
