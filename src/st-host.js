@@ -153,10 +153,35 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         chat.splice(at,0,...turns.map(m=>({role:m.role,content:m.content})));
         pending.meta={...pending.meta,historyRestored:turns.length};
     }
+    // Memory/summary extensions register their text with ST (setExtensionPrompt); ST adds it to every prompt it builds.
+    const EXTENSION_LABELS=[[/^long_memory_main$/,'코끼리를 생각하지마 · 장기기억'],[/^long_memory_anchor$/,'코끼리를 생각하지마 · 앵커'],[/^long_memory_recall$/,'코끼리를 생각하지마 · 회상'],[/^memoria_ledger$/,'Memoria · 장부'],[/^memoria_archive$/,'Memoria · 고정 장부'],[/^1_memory$/,'내장 요약 (Summarize)'],[/^qvink_memory/,'Qvink Memory'],[/^2_floating_prompt$/,'작가 노트'],[/^DEPTH_PROMPT/,'캐릭터 깊이 프롬프트'],[/^3_vectors/,'벡터 검색'],[/^customDepthWI/,'월드인포 (깊이)']];
+    function extensionPrompts(){
+        const raw=get().extensionPrompts||{};
+        return Object.entries(raw).filter(([,p])=>typeof p?.value==='string'&&p.value.trim()).map(([key,p])=>({key,label:(EXTENSION_LABELS.find(([re])=>re.test(key))||[])[1]||key,text:p.value,memory:/^(long_memory|memoria|1_memory|qvink_memory)/.test(key)}));
+    }
+    /** A few distinctive lines of a text, used to tell whether it reached the final prompt (macros and markup make exact matching unreliable). */
+    function probesOf(text){return String(text).split('\n').map(x=>x.trim()).filter(x=>x.length>=12&&!/[<>{}\[\]|]/.test(x)).sort((a,b)=>b.length-a.length).slice(0,3).map(x=>x.slice(0,40));}
+    function reported(text,full){const probes=probesOf(text);return probes.length?probes.some(p=>full.includes(p)):full.includes(String(text).trim().slice(0,40));}
+    /** Checks what reached the final prompt, and adds the extension texts the user asked to force in when ST left them out. */
+    function auditPrompt(chat){
+        const full=()=>chat.map(textOf).join('\n'),c=get(),force=new Set(pending.forceExtensions||[]);
+        const report=[];
+        for(const p of extensionPrompts()){
+            let included=reported(p.text,full()),forced=false;
+            if(!included&&force.has(p.key)){
+                let at=-1;for(let i=chat.length-1;i>=0;i--)if(textOf(chat[i]).includes(pending.marker)){at=i;break;}
+                if(at>=0&&typeof chat[at].content==='string'){const text=typeof c.substituteParams==='function'?c.substituteParams(p.text):p.text;chat[at]={...chat[at],content:`<memory source="${p.label.replace(/"/g,'')}">\n${text.trim()}\n</memory>\n\n`+chat[at].content};included=forced=true;}
+            }
+            report.push({key:p.key,label:p.label,memory:p.memory,length:p.text.length,included,forced});
+        }
+        pending.extensionReport=report;
+        const turns=pending.historyTurns;
+        if(Array.isArray(turns)&&pending.historyReport){const text=full(),checked=turns.filter(t=>probesOf(t.content).length);if(checked.length)pending.historyReport={...pending.historyReport,checked:checked.length,found:checked.filter(t=>reported(t.content,text)).length};}
+    }
     function shapePrompt(data) {
         if(!pending||data?.dryRun||!Array.isArray(data?.chat))return;
         for(let i=data.chat.length-1;i>=0;i--)if(pending.auxInserted?.has(data.chat[i]))data.chat.splice(i,1);
-        try{shapeTurn(data);for(const row of pending.auxiliaryTurns||[]){const copy={...row};data.chat.push(copy);pending.auxInserted.add(copy);}}finally{if(Array.isArray(data.chat)){restoreHistory(data.chat);pending.finalPrompt=structuredClone(data.chat);}}
+        try{shapeTurn(data);for(const row of pending.auxiliaryTurns||[]){const copy={...row};data.chat.push(copy);pending.auxInserted.add(copy);}}finally{if(Array.isArray(data.chat)){restoreHistory(data.chat);try{auditPrompt(data.chat);}catch(e){console.warn('[Side Story] prompt check failed',e);}pending.finalPrompt=structuredClone(data.chat);}}
     }
     function shapeTurn(data) {
         const chat=data.chat,marker=pending.marker;
@@ -346,13 +371,13 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
                     const meta={api:String(c.mainApi||''),source:String(cc.chat_completion_source||''),model:String(c.getChatCompletionModel?.()||''),squash:cc.squash_system_messages===true,postProcessing:String(cc.custom_prompt_post_processing||''),prefillChars:String(cc.assistant_prefill||'').length,presetMaxTokens:Number(cc.openai_max_tokens)||null,requestedMaxTokens:payload.parameters?.maxTokens??null,promptReadyEvent:!!readyEvent};
                     const marker=payload.marker||'<SIDESTORY>',at=quietPrompt.indexOf(marker);
                     if(payload.auxiliaryTurns?.length&&(!shaping||(c.mainApi&&c.mainApi!=='openai')))throw Error('보조 대화는 프롬프트 편집 이벤트를 지원하는 채팅 완성 API에서 사용할 수 있어요.');
-                    pending={auxiliaryTurns:payload.auxiliaryTurns||[],auxInserted:new WeakSet(),marker,turn:at>=0?quietPrompt.slice(at):'',history:payload.history||null,meta};
+                    pending={forceExtensions:payload.forceExtensions||[],auxiliaryTurns:payload.auxiliaryTurns||[],auxInserted:new WeakSet(),marker,turn:at>=0?quietPrompt.slice(at):'',history:payload.history||null,meta};
                     // Run after other extensions' PROMPT_READY handlers so the request stays the final user turn.
                     if(shaping){if(typeof events.makeLast==='function')events.makeLast(readyEvent,ready);else events.on(readyEvent,ready);}
                     try{return await withPreset(payload.presetName||'',quietRun);}
                     finally{
                         if(shaping)events.removeListener?.(readyEvent,ready);
-                        payload.onPromptReady?.({messages:pending.finalPrompt||null,history:pending.historyReport||null,meta:pending.meta});
+                        payload.onPromptReady?.({messages:pending.finalPrompt||null,history:pending.historyReport||null,meta:pending.meta,extensions:pending.extensionReport||null});
                         pending=null;
                     }
                 };
@@ -390,7 +415,7 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         } finally {signal?.removeEventListener('abort',handler);}
     }
     return {
-        request,generate,presetNames,currentPresetName,currentAnchor,resolveAnchor,createChatFromRecord,appendToCurrentChat,createCharacterFromProfile,createPersonaFromProfile,currentChatId,currentChat,linked,currentPersona,tokenCounter,connections,
+        request,generate,extensionPrompts,presetNames,currentPresetName,currentAnchor,resolveAnchor,createChatFromRecord,appendToCurrentChat,createCharacterFromProfile,createPersonaFromProfile,currentChatId,currentChat,linked,currentPersona,tokenCounter,connections,
         storage:{async get(){return {sideStory:get().extensionSettings?.st_sidestory||{}};},async patch(value){const c=get();if(!c.extensionSettings||typeof c.saveSettingsDebounced!=='function')throw new Error('실리태번 설정 저장 API를 찾지 못했어요.');c.extensionSettings.st_sidestory=structuredClone(value.sideStory);c.saveSettingsDebounced();}},
         setTimeout:globalThis.setTimeout.bind(globalThis),clearTimeout:globalThis.clearTimeout.bind(globalThis),
         onCleanup(fn){cleanups.push(fn);},cleanup(){for(const fn of cleanups.splice(0))fn();}
