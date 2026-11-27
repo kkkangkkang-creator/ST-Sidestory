@@ -921,3 +921,9 @@ select{height:36px}
 .group.pad{padding:8px 4px}
 .quick-counts .chip{border:1px solid var(--box);border-radius:14px;background:none;color:var(--muted)}
 .quick-counts .chip[aria-pressed=true]{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:600}
+.live-text{margin:14px 0 0;padding:0 2px;font-family:var(--read);font-size:14px;line-height:1.75;color:var(--text);white-space:normal;overflow-wrap:anywhere}
+.live-text p{margin:0 0 .9em}
+.live-caret{display:inline-block;width:7px;height:1em;vertical-align:-2px;background:var(--accent);opacity:.6;animation:live-blink 1s steps(2,start) infinite}
+@keyframes live-blink{to{visibility:hidden}}
+.live-note{margin-top:4px}
+#reader>.live-text,#reader>.live-note{padding-left:18px;padding-right:18px}

@@ -12,7 +12,9 @@ async function collectLore(options,chat,signal){
 function checkTask(target,signal){
  if(!alive||signal?.aborted||target!==activeChat())throw new DOMException('중단됨','AbortError');
 }
-let readyRecordId=null;
+let readyRecordId=null,liveTimer=null;
+/** Streamed text so far, shown in the writing box (throttled). */
+function showLive(text){if(!pending)return;pending.live=text;if(liveTimer)return;liveTimer=setTimeout(()=>{liveTimer=null;if(alive&&busy)render();},250);}
 function showCompletedResult(record,translation,target,signal){
  // A page/tab change should reveal the result; a chat change or cancellation must not.
  if(!alive||signal?.aborted||target!==activeChat())return false;
@@ -258,7 +260,7 @@ async function generate(action='new'){
   const nativeConversation=useSTContext?C.nativeTurns(options,task,prior,baseAction,{lore:bundle.lore,regen:action==='regenerate'}):null;
   const history=useSTContext?{limit:options.scope==='all'?null:Number(options.scope),anchor:action!=='new'?anchor:null,exclude:options.historyExclude===true,append:nativeConversation?.turns||null}:undefined;
   let historyReport=null;
-  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?(nativeConversation?nativeConversation.final:messages[0]?.content):undefined,auxiliaryTurns:options.mode!=='facet'?C.auxiliaryTurns(options,options.mode):[],marker:C.MARKER,history,forceExtensions:useSTContext?[...(s.forceExtensions||[])]:undefined,presetName:useSTContext?options.stPreset||'':undefined,onHistory:r=>historyReport=r},options,options.mode==='facet'?'다면 · AU 프로필 작성':action,t=>partial=t,bundle.counter);
+  record.content=await sendGeneration({connectionId:bundle.cid,messages,parameters:{maxTokens:options.maxTokens},streaming:false,runId,useSillyTavernContext:useSTContext,selectedLoreOnly:useSTContext&&options.loreMode==='selected',quietPrompt:useSTContext?(nativeConversation?nativeConversation.final:messages[0]?.content):undefined,auxiliaryTurns:options.mode!=='facet'?C.auxiliaryTurns(options,options.mode):[],marker:C.MARKER,history,forceExtensions:useSTContext?[...(s.forceExtensions||[])]:undefined,presetName:useSTContext?options.stPreset||'':undefined,onHistory:r=>historyReport=r},options,options.mode==='facet'?'다면 · AU 프로필 작성':action,t=>{partial=t;showLive(t);},bundle.counter);
   record.content=C.stripReasoning(record.content,options.reasoningBlocks);
   if(C.RECAP_MODES.has(record.mode)){const split=C.splitRecap(record.content);record.content=split.content;if(split.recap)record.recap=split.recap;}
   record.outputTokens=await bundle.counter.text(record.content);checkTask(target,signal);

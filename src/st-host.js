@@ -1,5 +1,5 @@
 /** SillyTavern adapter. Chat creation is an explicit user action. */
-export function createSTHost({context = () => globalThis.SillyTavern.getContext(), world = {}, state = {}, services = {}, personasApi = {}, fetcher = globalThis.fetch} = {}) {
+export function createSTHost({context = () => globalThis.SillyTavern.getContext(), world = {}, state = {}, services = {}, personasApi = {}, openaiApi = {}, sseApi = {}, fetcher = globalThis.fetch} = {}) {
     let running = null;
     const cleanups = [];
     const get = () => context();
@@ -347,9 +347,40 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         await c.saveChat();
         return list.length;
     }
+    /* ---------- streaming: ST builds the request exactly as it would (preset, sampling, post-processing); we send it with stream on */
+    // Seconds of silence, after a reply has started, that count as a dropped stream (overridable for testing).
+    const streamIdleSeconds=()=>Number(globalThis.sideStoryStreamIdleSeconds)>0?Number(globalThis.sideStoryStreamIdleSeconds):60;
+    function streamingSupported(){const c=get();return String(c.mainApi||'')==='openai'&&typeof openaiApi.createGenerationParameters==='function'&&typeof openaiApi.getStreamingReply==='function'&&typeof openaiApi.getChatCompletionModel==='function'&&!!openaiApi.oai_settings&&typeof sseApi.getEventSourceStream==='function';}
+    /** Sends chat messages with the current chat-completion settings as a stream. On a break the error carries partialText. */
+    async function streamChat(messages,signal,onText,maxTokens){
+        const c=get(),settings=Number(maxTokens)>0?{...openaiApi.oai_settings,openai_max_tokens:Number(maxTokens)}:openaiApi.oai_settings;
+        const {generate_data}=await openaiApi.createGenerationParameters(settings,openaiApi.getChatCompletionModel(settings),'quiet',messages);
+        generate_data.stream=true;
+        if(c.eventTypes?.CHAT_COMPLETION_SETTINGS_READY)await c.eventSource?.emit?.(c.eventTypes.CHAT_COMPLETION_SETTINGS_READY,generate_data);
+        let text='';
+        try{
+            const response=await fetcher('/api/backends/chat-completions/generate',{method:'POST',headers:c.getRequestHeaders(),body:JSON.stringify(generate_data),signal});
+            if(!response.ok){let detail='';try{detail=(await response.text()).slice(0,300);}catch{}throw new Error(`스트리밍 요청 실패: ${response.status}${detail?' · '+detail:''}`);}
+            const events=sseApi.getEventSourceStream();response.body.pipeThrough(events);const reader=events.readable.getReader(),state={reasoning:'',images:[],signature:'',toolSignatures:{}};
+            // ST's server does not close its stream when the API connection drops, so a silence after the reply has started counts as a break.
+            let started=false,finished=false,stalled=false;
+            const read=()=>{if(!started)return reader.read();const timer=setTimeout(()=>{stalled=true;reader.cancel().catch(()=>{});},streamIdleSeconds()*1000);return reader.read().finally(()=>clearTimeout(timer));};
+            for(;;){
+                const {done,value}=await read();if(done)break;started=true;
+                const raw=value?.data;if(raw==='[DONE]'){finished=true;break;}if(!raw)continue;
+                const parsed=JSON.parse(raw);
+                if(parsed?.error)throw new Error(String(parsed.error.message||parsed.error.type||parsed.error));
+                if(parsed?.choices?.[0]?.finish_reason||parsed?.candidates?.[0]?.finishReason||parsed?.type==='message_stop'||parsed?.delta?.stop_reason||parsed?.type==='message-end')finished=true;
+                const piece=openaiApi.getStreamingReply(parsed,state);if(piece){text+=piece;onText?.(text);}
+            }
+            if(stalled)throw new Error(`응답이 ${streamIdleSeconds()}초 동안 멈췄어요`);
+            if(!finished)throw new Error('응답이 끝 표시 없이 끊겼어요');
+            return text;
+        }catch(e){const err=e instanceof Error?e:new Error(String(e));if(err.name!=='AbortError'&&!/중단|abort/i.test(err.message))err.message=(text?'스트리밍이 중간에 끊겼어요: ':'')+err.message;err.partialText=text;throw err;}
+    }
     async function generate(payload, signal) {
         check(signal);
-        const c=get(),viaProfile=(payload.connectionId||'st-current')!=='st-current';
+        const c=get(),viaProfile=(payload.connectionId||'st-current')!=='st-current'||(payload.stream===true&&!payload.useSillyTavernContext&&streamingSupported());
         if(running&&!viaProfile)throw new Error('이전 API 요청이 종료될 때까지 잠시 기다려 주세요.');
         if((typeof state.isGenerating==='function' && state.isGenerating()) || (typeof c.isGenerating==='function'?c.isGenerating():c.isGenerating) || c.isSendPress)throw new Error('본편 생성이 끝난 뒤 다시 시도해 주세요.');
         const id=payload.connectionId||'st-current',service=connectionService();
@@ -396,12 +427,20 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
                     const ctx=Number(live?.openai_max_context),own=Number(live?.openai_max_tokens)||0,extra=String(get().mainApi||'')==='openai'&&Number.isFinite(ctx)&&ctx>0?Math.max(0,requested-own):0;
                     if(pending)pending.meta={...pending.meta,contextSize:Number.isFinite(ctx)?ctx:null,contextWidened:extra};
                     if(extra)live.openai_max_context=ctx+extra;
-                    try{return await c.generateQuietPrompt({quietPrompt,quietToLoud:false,responseLength:payload.parameters?.maxTokens,removeReasoning:true,...(quietName?{quietName}:{})});}
-                    finally{if(extra&&live.openai_max_context===ctx+extra)live.openai_max_context=ctx;if(payload.selectedLoreOnly)events.removeListener(event,filter);}
+                    // Streaming: once ST has the final request, send that same request as a stream and stop ST's own copy before it leaves.
+                    const afterType=c.eventTypes?.GENERATE_AFTER_DATA,stopST=state.stopGeneration||c.stopGeneration;let streamed=null;
+                    const streaming=payload.stream===true&&streamingSupported()&&afterType&&typeof stopST==='function'&&typeof events?.on==='function';
+                    const afterData=async(data,dryRun)=>{if(dryRun||streamed||!Array.isArray(data?.prompt))return;streamed={text:'',error:null};try{streamed.text=await streamChat(data.prompt,signal,payload.onStream);}catch(e){streamed.error=e;}finally{try{stopST();}catch{}}};
+                    if(streaming)events.on(afterType,afterData);
+                    if(pending)pending.meta={...pending.meta,streaming};
+                    try{const out=await c.generateQuietPrompt({quietPrompt,quietToLoud:false,responseLength:payload.parameters?.maxTokens,removeReasoning:true,...(quietName?{quietName}:{})});if(streamed){if(streamed.error)throw streamed.error;return streamed.text;}return out;}
+                    catch(e){if(streamed){if(streamed.error)throw streamed.error;return streamed.text;}throw e;}
+                    finally{if(streaming)events.removeListener?.(afterType,afterData);if(extra&&live.openai_max_context===ctx+extra)live.openai_max_context=ctx;if(payload.selectedLoreOnly)events.removeListener(event,filter);}
                 };
             } else {
-                if(typeof c.generateRaw!=='function')throw new Error('generateRaw를 지원하는 실리태번 버전이 필요해요.');
-                send=()=>c.generateRaw({prompt:structuredClone(payload.messages),responseLength:payload.parameters?.maxTokens,trimNames:false});
+                if(!(payload.stream===true&&streamingSupported())&&typeof c.generateRaw!=='function')throw new Error('generateRaw를 지원하는 실리태번 버전이 필요해요.');
+                send=payload.stream===true&&streamingSupported()?async()=>{const eventData={chat:structuredClone(payload.messages),dryRun:false};if(c.eventTypes?.CHAT_COMPLETION_PROMPT_READY)await c.eventSource?.emit?.(c.eventTypes.CHAT_COMPLETION_PROMPT_READY,eventData);return streamChat(eventData.chat,signal,payload.onStream,payload.parameters?.maxTokens);}
+                    :()=>c.generateRaw({prompt:structuredClone(payload.messages),responseLength:payload.parameters?.maxTokens,trimNames:false});
             }
         }
         const job=Promise.resolve().then(()=>{check(signal);return send();});
@@ -414,7 +453,7 @@ export function createSTHost({context = () => globalThis.SillyTavern.getContext(
         } finally {signal?.removeEventListener('abort',handler);}
     }
     return {
-        request,generate,extensionPrompts,presetNames,currentPresetName,currentAnchor,resolveAnchor,createChatFromRecord,appendToCurrentChat,createCharacterFromProfile,createPersonaFromProfile,currentChatId,currentChat,linked,currentPersona,tokenCounter,connections,
+        request,generate,streamingSupported,extensionPrompts,presetNames,currentPresetName,currentAnchor,resolveAnchor,createChatFromRecord,appendToCurrentChat,createCharacterFromProfile,createPersonaFromProfile,currentChatId,currentChat,linked,currentPersona,tokenCounter,connections,
         storage:{async get(){return {sideStory:get().extensionSettings?.st_sidestory||{}};},async patch(value){const c=get();if(!c.extensionSettings||typeof c.saveSettingsDebounced!=='function')throw new Error('실리태번 설정 저장 API를 찾지 못했어요.');c.extensionSettings.st_sidestory=structuredClone(value.sideStory);c.saveSettingsDebounced();}},
         setTimeout:globalThis.setTimeout.bind(globalThis),clearTimeout:globalThis.clearTimeout.bind(globalThis),
         onCleanup(fn){cleanups.push(fn);},cleanup(){for(const fn of cleanups.splice(0))fn();}

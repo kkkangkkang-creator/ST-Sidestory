@@ -11,12 +11,13 @@ function start(){if(!starting)starting=startOnce().finally(()=>{starting=null;})
 async function startOnce() {
  if(document.getElementById('st-sidestory-root'))return;
  if(!globalThis.SillyTavern?.getContext)throw new Error('실리태번 컨텍스트를 찾지 못했어요.');
- let world={},state={},services={},personasApi={};
+ let world={},state={},services={},personasApi={},openaiApi={},sseApi={};
  try { world=await import('../../../world-info.js'); } catch(e) { console.warn('[Side Story] World Info module unavailable',e); }
  try { state=await import('../../../../script.js'); } catch(e) { console.warn('[Side Story] Optional state module unavailable',e); }
  try { services=await import('../../shared.js'); } catch(e) { console.warn('[Side Story] Connection service module unavailable',e); }
  try { personasApi=await import('../../../personas.js'); } catch(e) { console.warn('[Side Story] Persona module unavailable',e); }
- hostAdapter=createSTHost({world,state,services,personasApi});
+ try { openaiApi=await import('../../../openai.js'); sseApi=await import('../../../sse-stream.js'); } catch(e) { console.warn('[Side Story] Streaming modules unavailable',e); }
+ hostAdapter=createSTHost({world,state,services,personasApi,openaiApi,sseApi});
  await (async function(stHost){
 '''
 wrapper+=code+'\n})(hostAdapter);\n}\n'
